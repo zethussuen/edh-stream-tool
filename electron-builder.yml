@@ -1,0 +1,36 @@
+appId: com.cedh-stream-tool.app
+productName: cEDH Stream Tool
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - server/**/*.ts
+  - electron/**/*.ts
+  - src/shared/types.ts
+  - package.json
+  - node_modules/**/*
+
+extraMetadata:
+  main: electron/main.ts
+
+mac:
+  target: dmg
+  category: public.app-category.utilities
+
+win:
+  target: nsis
+
+nsis:
+  oneClick: true
+  allowToChangeInstallationDirectory: false
+
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
