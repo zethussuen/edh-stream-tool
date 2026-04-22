@@ -1,4 +1,5 @@
 import type { SpotlightData } from "@shared/types";
+import { ManaCost } from "@shared/components/ManaCost";
 
 interface Props {
   card: SpotlightData | null;
@@ -52,17 +53,9 @@ export function Spotlight({ card }: Props) {
           {card.name}
         </h1>
         {card.manaCost && (
-          <p
-            style={{
-              fontFamily: '"JetBrains Mono", monospace',
-              fontSize: 28,
-              color: "#e4e0d8",
-              margin: 0,
-              opacity: 0.8,
-            }}
-          >
-            {card.manaCost}
-          </p>
+          <div style={{ margin: 0, opacity: 0.8 }}>
+            <ManaCost cost={card.manaCost} size={28} gap={6} />
+          </div>
         )}
         <p
           style={{

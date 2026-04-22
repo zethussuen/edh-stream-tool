@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from "vite-plus";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "path";
+import pkg from "./package.json" with { type: "json" };
 
 function devRoutes(): Plugin {
   return {
@@ -16,14 +17,14 @@ function devRoutes(): Plugin {
           return;
         }
         // Redirect /caster to /caster/ so relative paths resolve correctly
-        const bare = url.match(/^\/(caster|control|overlay)$/);
+        const bare = url.match(/^\/(caster|control|overlay|spotlight|nameplates|annotations|decklist)$/);
         if (bare) {
           res.writeHead(302, { Location: `/${bare[1]}/` });
           res.end();
           return;
         }
-        // Rewrite /caster/foo → /src/caster/foo (and same for control, overlay)
-        const match = url.match(/^\/(caster|control|overlay)(\/.*)?$/);
+        // Rewrite /caster/foo → /src/caster/foo (and same for other pages)
+        const match = url.match(/^\/(caster|control|overlay|spotlight|nameplates|annotations|decklist)(\/.*)?$/);
         if (match) {
           const page = match[1];
           const rest = match[2] || "";
@@ -40,6 +41,9 @@ function devRoutes(): Plugin {
 }
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   plugins: [devRoutes(), react(), tailwindcss()],
   resolve: {
     alias: {
@@ -53,6 +57,10 @@ export default defineConfig({
         caster: resolve(__dirname, "src/caster/index.html"),
         control: resolve(__dirname, "src/control/index.html"),
         overlay: resolve(__dirname, "src/overlay/index.html"),
+        spotlight: resolve(__dirname, "src/spotlight/index.html"),
+        nameplates: resolve(__dirname, "src/nameplates/index.html"),
+        annotations: resolve(__dirname, "src/annotations/index.html"),
+        decklist: resolve(__dirname, "src/decklist/index.html"),
       },
     },
   },

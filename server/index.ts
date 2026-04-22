@@ -32,8 +32,14 @@ export function startServer(distDir?: string): Promise<ServerInstance> {
   function topdeckProxy(route: string, buildUrl: (body: Record<string, string>) => string) {
     app.post(`/api/topdeck/${route}`, async (req, res) => {
       try {
+        const room = (req.body.room as string) || "default";
+        const apiKey = req.body.apiKey || rooms.getTopDeckApiKey(room) || process.env.TOPDECK_API_KEY;
+        if (!apiKey) {
+          res.status(400).json({ error: "No TopDeck API key provided" });
+          return;
+        }
         const r = await fetch(buildUrl(req.body), {
-          headers: { Authorization: req.body.apiKey },
+          headers: { Authorization: apiKey },
         });
         const data = await r.json();
         res.status(r.status).json(data);
@@ -43,25 +49,35 @@ export function startServer(distDir?: string): Promise<ServerInstance> {
     });
   }
 
+  // Let the client know if a server-side API key is configured
+  app.get("/api/topdeck/has-key", (req, res) => {
+    const room = (req.query.room as string) || "default";
+    const hasKey = !!(rooms.getTopDeckApiKey(room) || process.env.TOPDECK_API_KEY);
+    res.json({ hasKey });
+  });
+
   topdeckProxy("tournament", ({ tid }) => `${TOPDECK_BASE}/v2/tournaments/${tid}`);
   topdeckProxy("standings", ({ tid }) => `${TOPDECK_BASE}/v2/tournaments/${tid}/standings`);
+  topdeckProxy("rounds", ({ tid }) => `${TOPDECK_BASE}/v2/tournaments/${tid}/rounds`);
   topdeckProxy("rounds/latest", ({ tid }) => `${TOPDECK_BASE}/v2/tournaments/${tid}/rounds/latest`);
   topdeckProxy("player", ({ tid, playerId }) => `${TOPDECK_BASE}/v2/tournaments/${tid}/players/${playerId}`);
+  topdeckProxy("attendees", ({ tid }) => `${TOPDECK_BASE}/v2/tournaments/${tid}/attendees`);
 
   // ── Static Serving (production / Electron) ──
 
   if (distDir) {
     app.use("/assets", express.static(join(distDir, "assets")));
+    app.use("/mana_symbols", express.static(join(distDir, "mana_symbols")));
 
     app.get("/", (_req, res) => res.redirect("/caster"));
 
-    for (const page of ["caster", "control", "overlay"]) {
-      app.get(`/${page}`, (_req, res) => {
+    for (const page of ["caster", "control", "overlay", "spotlight", "nameplates", "annotations", "decklist"]) {
+      const sendPage = (_req: express.Request, res: express.Response) => {
         res.sendFile(join(distDir, "src", page, "index.html"));
-      });
-      app.get(`/${page}/{*path}`, (_req, res) => {
-        res.sendFile(join(distDir, "src", page, "index.html"));
-      });
+      };
+      app.get(`/${page}`, sendPage);
+      app.get(`/${page}/`, sendPage);
+      app.get(`/${page}/{*path}`, sendPage);
     }
   }
 
@@ -75,6 +91,18 @@ export function startServer(distDir?: string): Promise<ServerInstance> {
 
     // Send current state on connect
     socket.emit("state:full", rooms.getOrCreate(room));
+    const streamTable = rooms.getStreamTable(room);
+    if (streamTable) {
+      socket.emit("streamTable:updated", streamTable);
+    }
+    const namePlates = rooms.getNamePlates(room);
+    if (namePlates) {
+      socket.emit("namePlates:updated", namePlates);
+    }
+    const tdConfig = rooms.getTopDeckConfig(room);
+    if (tdConfig) {
+      socket.emit("topDeckConfig:updated", { tournamentId: tdConfig.tournamentId });
+    }
 
     // ── Card lifecycle ──
 
@@ -129,6 +157,32 @@ export function startServer(distDir?: string): Promise<ServerInstance> {
     socket.on("spotlight:off", () => {
       rooms.clearSpotlight(room);
       io.to(room).emit("spotlight:cleared");
+    });
+
+    // ── Stream Table ──
+
+    socket.on("streamTable:set", (data) => {
+      rooms.setStreamTable(room, data);
+      socket.to(room).emit("streamTable:updated", data);
+    });
+
+    socket.on("namePlates:set", (data) => {
+      rooms.setNamePlates(room, data);
+      socket.to(room).emit("namePlates:updated", data);
+    });
+
+    // ── TopDeck Config (producer shares with room) ──
+
+    socket.on("topDeckConfig:set", (data: { apiKey?: string; tournamentId: string } | null) => {
+      if (role !== "control") return; // Only the producer can set config
+      if (data) {
+        rooms.setTopDeckConfig(room, { apiKey: data.apiKey || "", tournamentId: data.tournamentId });
+        // Broadcast tournament ID to others (never expose API key to other clients)
+        socket.to(room).emit("topDeckConfig:updated", { tournamentId: data.tournamentId });
+      } else {
+        rooms.setTopDeckConfig(room, null);
+        socket.to(room).emit("topDeckConfig:updated", null);
+      }
     });
 
     // ── Drawing (relay only) ──

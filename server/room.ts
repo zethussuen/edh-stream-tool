@@ -1,9 +1,17 @@
-import type { OverlayCard, RoomState, SpotlightData } from "../src/shared/types.js";
+import type { OverlayCard, RoomState, SpotlightData, TopDeckTable, NamePlate } from "../src/shared/types.js";
 import { OVERLAY_WIDTH, OVERLAY_HEIGHT } from "../src/shared/constants.js";
+
+interface TopDeckRoomConfig {
+  apiKey: string;
+  tournamentId: string;
+}
 
 interface RoomData {
   state: RoomState;
   nextCardId: number;
+  streamTable: TopDeckTable | null;
+  namePlates: NamePlate[] | null;
+  topDeckConfig: TopDeckRoomConfig | null;
 }
 
 export class RoomManager {
@@ -111,6 +119,34 @@ export class RoomManager {
     if (rd) rd.state.spotlight = null;
   }
 
+  setStreamTable(room: string, data: TopDeckTable | null): void {
+    this.getRoomData(room).streamTable = data;
+  }
+
+  getStreamTable(room: string): TopDeckTable | null {
+    return this.rooms.get(room)?.streamTable ?? null;
+  }
+
+  setNamePlates(room: string, data: NamePlate[] | null): void {
+    this.getRoomData(room).namePlates = data;
+  }
+
+  getNamePlates(room: string): NamePlate[] | null {
+    return this.rooms.get(room)?.namePlates ?? null;
+  }
+
+  setTopDeckConfig(room: string, config: TopDeckRoomConfig | null): void {
+    this.getRoomData(room).topDeckConfig = config;
+  }
+
+  getTopDeckConfig(room: string): TopDeckRoomConfig | null {
+    return this.rooms.get(room)?.topDeckConfig ?? null;
+  }
+
+  getTopDeckApiKey(room: string): string | null {
+    return this.rooms.get(room)?.topDeckConfig?.apiKey ?? null;
+  }
+
   clearAll(room: string): RoomState {
     const rd = this.getRoomData(room);
     rd.state.cards = [];
@@ -128,6 +164,9 @@ export class RoomManager {
           settings: { overlayWidth: OVERLAY_WIDTH, overlayHeight: OVERLAY_HEIGHT },
         },
         nextCardId: 1,
+        streamTable: null,
+        namePlates: null,
+        topDeckConfig: null,
       };
       this.rooms.set(room, rd);
     }

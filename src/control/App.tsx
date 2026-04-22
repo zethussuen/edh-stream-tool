@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { TopDeckConfig } from "@shared/types";
+import type { TopDeckConfig, TopDeckTable, NamePlate } from "@shared/types";
 import { OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
-import { useRoom, useSocket } from "@shared/socket";
+import { useRoom, useSocket, getRoom } from "@shared/socket";
 import { useFeedPublisher } from "@shared/feed";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@shared/components/ui/tooltip";
 import { Sidebar } from "../caster/components/Sidebar";
 import { PreviewCanvas } from "../caster/components/PreviewCanvas";
 import { CardLayer } from "../caster/components/CardLayer";
@@ -24,16 +25,108 @@ export function App() {
 
   const [activeTab, setActiveTab] = useState("search");
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [topDeckConfig, setTopDeckConfig] = useState<TopDeckConfig | null>(
+  const [hasServerKey, setHasServerKey] = useState(false);
+  const [streamTable, setStreamTableLocal] = useState<TopDeckTable | null>(null);
+  const setStreamTable = useCallback((table: TopDeckTable | null, plates: NamePlate[] | null = null) => {
+    setStreamTableLocal(table);
+    emit("streamTable:set", table);
+    emit("namePlates:set", plates);
+  }, [emit]);
+
+  useEffect(() => {
+    const s = socket.current;
+    if (!s) return;
+    const handler = (table: TopDeckTable | null) => setStreamTableLocal(table);
+    s.on("streamTable:updated", handler);
+    return () => { s.off("streamTable:updated", handler); };
+  }, [socket]);
+  const room = getRoom();
+  const [topDeckConfig, setTopDeckConfigLocal] = useState<TopDeckConfig | null>(
     () => {
       try {
         const saved = localStorage.getItem("topdeck-config");
-        return saved ? JSON.parse(saved) : null;
+        if (!saved) return null;
+        const parsed = JSON.parse(saved);
+        return { ...parsed, room };
       } catch {
         return null;
       }
     },
   );
+
+  const setTopDeckConfig = useCallback((config: TopDeckConfig | null) => {
+    if (config) {
+      const withRoom = { ...config, room };
+      setTopDeckConfigLocal(withRoom);
+      localStorage.setItem("topdeck-config", JSON.stringify(config));
+      // Share with all clients in the room (API key stays server-side)
+      emit("topDeckConfig:set", { apiKey: config.apiKey, tournamentId: config.tournamentId });
+    } else {
+      setTopDeckConfigLocal(null);
+      localStorage.removeItem("topdeck-config");
+      emit("topDeckConfig:set", null);
+    }
+  }, [emit, room]);
+
+  useEffect(() => {
+    fetch(`/api/topdeck/has-key?room=${encodeURIComponent(room)}`)
+      .then((r) => r.json())
+      .then((d) => setHasServerKey(!!d.hasKey))
+      .catch(() => {});
+  }, [room]);
+
+  // Keep a ref so the on-connect effect always reads the latest config
+  const topDeckConfigRef = useRef(topDeckConfig);
+  topDeckConfigRef.current = topDeckConfig;
+
+  // On connect, push saved config to server so casters get it
+  useEffect(() => {
+    if (!connected) return;
+    const saved = topDeckConfigRef.current;
+    if (saved?.tournamentId) {
+      emit("topDeckConfig:set", { apiKey: saved.apiKey, tournamentId: saved.tournamentId });
+    }
+  }, [connected, emit]);
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [showDevicePicker, setShowDevicePicker] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  const listDevices = useCallback(async () => {
+    // Request permission first so labels are populated
+    try {
+      const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      tempStream.getTracks().forEach((t) => t.stop());
+    } catch { /* user denied — we'll show empty list */ }
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    setVideoDevices(devices.filter((d) => d.kind === "videoinput"));
+  }, []);
+
+  // Close picker on outside click
+  useEffect(() => {
+    if (!showDevicePicker) return;
+    function onClick(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowDevicePicker(false);
+      }
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [showDevicePicker]);
+
+  const handleCameraClick = useCallback(async () => {
+    if (publishing) {
+      stopCapture();
+      return;
+    }
+    await listDevices();
+    setShowDevicePicker(true);
+  }, [publishing, stopCapture, listDevices]);
+
+  const selectDevice = useCallback(async (deviceId: string) => {
+    setShowDevicePicker(false);
+    await startCapture(deviceId);
+  }, [startCapture]);
+
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [canvasScale, setCanvasScale] = useState(1);
@@ -55,7 +148,10 @@ export function App() {
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
 
-      if (e.key === "Escape") emit("spotlight:off");
+      if (e.key === "Escape") {
+        if (showDevicePicker) { setShowDevicePicker(false); return; }
+        emit("spotlight:off");
+      }
       if (e.key === "/") {
         e.preventDefault();
         searchInputRef.current?.focus();
@@ -63,7 +159,7 @@ export function App() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [emit]);
+  }, [emit, showDevicePicker]);
 
   return (
     <div
@@ -81,17 +177,43 @@ export function App() {
           PRODUCER CONTROL
         </span>
         <div className="flex-1" />
-        <button
-          onClick={publishing ? stopCapture : startCapture}
-          className={`h-8 rounded px-3 text-xs font-medium transition-colors ${
-            publishing
-              ? "bg-status-green/20 text-status-green hover:bg-status-red/20 hover:text-status-red"
-              : "bg-bg-surface text-text-dim hover:bg-bg-overlay hover:text-text-primary"
-          }`}
-          title={publishing ? `Broadcasting: ${deviceLabel}. Click to stop.` : "Share camera feed with casters"}
-        >
-          {publishing ? `📹 ${deviceLabel}` : "📹 Start Camera"}
-        </button>
+        <div className="relative" ref={pickerRef}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={handleCameraClick}
+                className={`h-8 rounded px-3 text-xs font-medium transition-colors ${
+                  publishing
+                    ? "bg-status-green/20 text-status-green hover:bg-status-red/20 hover:text-status-red"
+                    : "bg-bg-surface text-text-dim hover:bg-bg-overlay hover:text-text-primary"
+                }`}
+              >
+                {publishing ? `Stop (${deviceLabel})` : "Start Camera"}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" sideOffset={6}>
+              {publishing ? "Stop broadcasting to casters" : "Share camera feed with casters"}
+            </TooltipContent>
+          </Tooltip>
+
+          {showDevicePicker && (
+            <div className="absolute right-0 top-full mt-1 z-50 min-w-[240px] rounded border border-border bg-bg-raised shadow-lg py-1">
+              {videoDevices.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-text-muted">No cameras found</p>
+              ) : (
+                videoDevices.map((d) => (
+                  <button
+                    key={d.deviceId}
+                    onClick={() => selectDevice(d.deviceId)}
+                    className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-bg-surface transition-colors truncate"
+                  >
+                    {d.label || `Camera ${d.deviceId.slice(0, 8)}`}
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
         <button
           onClick={() => setSettingsOpen(true)}
           className="h-8 w-8 flex items-center justify-center rounded bg-bg-surface text-text-dim hover:bg-bg-overlay hover:text-text-primary transition-colors"
@@ -111,12 +233,15 @@ export function App() {
         setActiveTab={setActiveTab}
         emit={emit}
         topDeckConfig={topDeckConfig}
+        hasServerKey={hasServerKey}
+        streamTable={streamTable}
+        setStreamTable={setStreamTable}
         searchInputRef={searchInputRef}
       />
 
       {/* Canvas (no draw layer) */}
       <div ref={canvasContainerRef} className="relative overflow-hidden bg-bg-base">
-        <PreviewCanvas previewVideoRef={publishing ? previewRef : undefined}>
+        <PreviewCanvas previewVideoRef={publishing ? previewRef : undefined} emit={emit} isEmpty={state.cards.length === 0}>
           <CardLayer
             cards={state.cards}
             scale={canvasScale}
@@ -140,6 +265,8 @@ export function App() {
         onClose={() => setSettingsOpen(false)}
         topDeckConfig={topDeckConfig}
         onTopDeckConfigChange={setTopDeckConfig}
+        hasServerKey={hasServerKey}
+        role="control"
       />
     </div>
   );

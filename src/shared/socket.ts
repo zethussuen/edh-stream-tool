@@ -3,7 +3,7 @@ import { io, type Socket } from "socket.io-client";
 import type { DrawStroke, OverlayCard, RoomState, SpotlightData } from "./types";
 import { OVERLAY_HEIGHT, OVERLAY_WIDTH } from "./constants";
 
-function getRoom(): string {
+export function getRoom(): string {
   const params = new URLSearchParams(window.location.search);
   return params.get("room") || "default";
 }

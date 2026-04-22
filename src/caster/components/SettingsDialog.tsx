@@ -6,6 +6,8 @@ interface Props {
   onClose: () => void;
   topDeckConfig: TopDeckConfig | null;
   onTopDeckConfigChange: (config: TopDeckConfig | null) => void;
+  hasServerKey: boolean;
+  role?: "caster" | "control";
 }
 
 export function SettingsDialog({
@@ -13,9 +15,12 @@ export function SettingsDialog({
   onClose,
   topDeckConfig,
   onTopDeckConfigChange,
+  hasServerKey,
+  role = "caster",
 }: Props) {
   const [apiKey, setApiKey] = useState(topDeckConfig?.apiKey ?? "");
   const [tid, setTid] = useState(topDeckConfig?.tournamentId ?? "");
+  const isCaster = role === "caster";
 
   useEffect(() => {
     setApiKey(topDeckConfig?.apiKey ?? "");
@@ -25,16 +30,14 @@ export function SettingsDialog({
   if (!open) return null;
 
   const handleSave = () => {
-    if (apiKey.trim() && tid.trim()) {
-      const config: TopDeckConfig = {
-        apiKey: apiKey.trim(),
-        tournamentId: tid.trim(),
-      };
+    const config: TopDeckConfig = {
+      apiKey: apiKey.trim(),
+      tournamentId: tid.trim(),
+    };
+    if (config.apiKey || config.tournamentId) {
       onTopDeckConfigChange(config);
-      localStorage.setItem("topdeck-config", JSON.stringify(config));
     } else {
       onTopDeckConfigChange(null);
-      localStorage.removeItem("topdeck-config");
     }
     onClose();
   };
@@ -54,22 +57,59 @@ export function SettingsDialog({
           <legend className="text-[10px] font-medium uppercase tracking-widest text-text-muted mb-2">
             TopDeck.gg
           </legend>
-          <div className="flex flex-col gap-2">
-            <input
-              type="password"
-              placeholder="API Key"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              className="h-8 w-full rounded border border-border bg-bg-surface px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-gold focus:outline-none"
-            />
-            <input
-              type="text"
-              placeholder="Tournament ID"
-              value={tid}
-              onChange={(e) => setTid(e.target.value)}
-              className="h-8 w-full rounded border border-border bg-bg-surface px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-gold focus:outline-none"
-            />
-          </div>
+          {isCaster ? (
+            <div className="flex flex-col gap-2">
+              {topDeckConfig?.tournamentId ? (
+                <div className="flex items-center gap-2 h-8 px-3 rounded border border-border bg-bg-surface">
+                  <span className="h-2 w-2 rounded-full bg-status-green shrink-0" />
+                  <span className="text-xs text-text-dim">
+                    Connected to tournament — set by producer
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 h-8 px-3 rounded border border-border bg-bg-surface">
+                  <span className="h-2 w-2 rounded-full bg-text-muted shrink-0" />
+                  <span className="text-xs text-text-muted">
+                    Waiting for producer to set tournament
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {hasServerKey ? (
+                <div className="flex items-center gap-2 h-8 px-3 rounded border border-border bg-bg-surface">
+                  <span className="h-2 w-2 rounded-full bg-status-green shrink-0" />
+                  <span className="text-xs text-text-dim">Server API key configured</span>
+                </div>
+              ) : (
+                <input
+                  type="password"
+                  placeholder="API Key"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  className="h-8 w-full rounded border border-border bg-bg-surface px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-gold focus:outline-none"
+                />
+              )}
+              <input
+                type="text"
+                placeholder="Tournament ID (from tournament URL)"
+                value={tid}
+                onChange={(e) => setTid(e.target.value)}
+                className="h-8 w-full rounded border border-border bg-bg-surface px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-gold focus:outline-none"
+              />
+              {!hasServerKey && (
+                <a
+                  href="https://topdeck.gg/account"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1.5 inline-block text-[10px] text-gold hover:text-gold-hover transition-colors"
+                >
+                  Find your API key at topdeck.gg/account &rarr;
+                </a>
+              )}
+            </div>
+          )}
         </fieldset>
 
         {/* Video Feed info */}
@@ -83,19 +123,24 @@ export function SettingsDialog({
           </p>
         </fieldset>
 
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="h-8 rounded bg-bg-surface px-4 text-sm text-text-dim hover:bg-bg-overlay transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="h-8 rounded bg-gold px-4 text-sm font-medium text-bg-base hover:bg-gold-hover transition-colors"
-          >
-            Save
-          </button>
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] text-text-muted">v{__APP_VERSION__}</span>
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="h-8 rounded bg-bg-surface px-4 text-sm text-text-dim hover:bg-bg-overlay transition-colors"
+            >
+              {isCaster ? "Close" : "Cancel"}
+            </button>
+            {!isCaster && (
+              <button
+                onClick={handleSave}
+                className="h-8 rounded bg-gold px-4 text-sm font-medium text-bg-base hover:bg-gold-hover transition-colors"
+              >
+                Save
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

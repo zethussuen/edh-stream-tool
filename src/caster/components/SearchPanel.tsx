@@ -5,6 +5,7 @@ import { cardAddPayload, spotlightPayload, cardDragStart } from "@shared/cards";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PlusSignCircleIcon, SpotlightIcon } from "@hugeicons/core-free-icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@shared/components/ui/tooltip";
+import { ManaCost } from "@shared/components/ManaCost";
 
 interface Props {
   emit: (event: string, data?: unknown) => void;
@@ -68,7 +69,7 @@ export function SearchPanel({ emit, searchInputRef }: Props) {
       <input
         ref={searchInputRef}
         type="text"
-        placeholder="Search cards..."
+        placeholder="Search Scryfall (e.g. Thassa's Oracle)..."
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         className="h-8 w-full rounded border border-border bg-bg-surface px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-gold focus:outline-none"
@@ -88,6 +89,7 @@ export function SearchPanel({ emit, searchInputRef }: Props) {
             draggable
             onDragStart={(e) => cardDragStart(e, card)}
             className="flex items-center gap-2 rounded p-1.5 hover:bg-bg-surface cursor-grab active:cursor-grabbing"
+            title="Drag onto canvas to place"
           >
             <img
               src={card.imageUriSmall}
@@ -97,7 +99,10 @@ export function SearchPanel({ emit, searchInputRef }: Props) {
               loading="lazy"
             />
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-text-primary truncate">{card.name}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm text-text-primary truncate">{card.name}</p>
+                <ManaCost cost={card.manaCost} size={14} />
+              </div>
               <p className="text-xs text-text-dim truncate">{card.typeLine}</p>
             </div>
             <div className="flex gap-1 shrink-0">

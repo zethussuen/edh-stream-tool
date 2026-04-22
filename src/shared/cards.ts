@@ -39,6 +39,23 @@ export function spotlightPayload(card: ScryfallCard): SpotlightData {
   };
 }
 
+/**
+ * Extract commander display name from a deckObj.
+ * Partners are joined with " / ", DFCs already contain " // " in the card name.
+ */
+export function getCommanderLabel(
+  deckObj: Record<string, Record<string, { id: string; count: number }>> | null | undefined,
+): string | null {
+  if (!deckObj) return null;
+  const commanders = deckObj["Commanders"];
+  if (!commanders || typeof commanders !== "object") return null;
+  const names = Object.keys(commanders).filter(
+    (k) => typeof commanders[k] === "object" && commanders[k]?.id,
+  );
+  if (names.length === 0) return null;
+  return names.join(" / ");
+}
+
 export function cardDragStart(e: React.DragEvent, card: ScryfallCard) {
   e.dataTransfer.setData("application/json", JSON.stringify(card));
   e.dataTransfer.effectAllowed = "copy";

@@ -8,7 +8,7 @@ A real-time, multi-operator stream overlay tool for casting competitive EDH (cED
 
 - **Casters (2)**: At the stream table with their own laptops. Open `/caster` in a browser. They search for cards, place/move them on the overlay, draw annotations, and trigger spotlight mode. They watch the game and commentate — the tool needs to be fast and low-friction.
 - **Producer (1)**: At the streaming PC running OBS with a Stream Deck. Opens `/control` in a browser for overlay management (clear cards, reposition, override anything casters do). Has final authority over what's on screen.
-- **OBS Overlay**: The producer's OBS loads `/overlay` as a 1920×1080 transparent browser source layered over the game camera feed. This is what viewers see.
+- **OBS Overlay**: The producer's OBS loads overlay browser sources (1920×1080, transparent) layered over the game camera feed. Available as a single combined source (`/overlay`) or individual layers (`/spotlight`, `/nameplates`, `/annotations`, `/decklist`) for independent z-ordering and visibility control in OBS.
 
 ## Tech Stack
 
@@ -17,9 +17,11 @@ A real-time, multi-operator stream overlay tool for casting competitive EDH (cED
 - **Styling**: Tailwind CSS v4 + shadcn/ui components
 - **Fonts**: `Bebas Neue` (headings/brand), `JetBrains Mono` (body/UI) via Google Fonts
 - **Server**: Node.js + Express + Socket.IO
-- **Card Data**: Scryfall REST API (called from browser, not proxied through server)
+- **Card Data**: Scryfall REST API (batch collection endpoint for oracle IDs, individual for search)
 - **Deck Validation**: Scrollrack API (https://scrollrack.topdeck.gg/api/validate)
+- **Tournament Data**: TopDeck.gg API v2 (attendees endpoint for decklists, requires staff/owner access)
 - **Real-time Transport**: Socket.IO (WebSocket with auto-reconnect, room support)
+- **Desktop App**: Electron (packages server + frontend for standalone distribution)
 
 ## Architecture
 
@@ -43,55 +45,82 @@ Room isolation: append `?room=<name>` to any URL for independent overlay session
 cedh-stream-tool/
 ├── CLAUDE.md
 ├── package.json
-├── vite.config.ts
+├── vite.config.ts                  # Multi-page Vite config, injects __APP_VERSION__
 ├── tsconfig.json
-├── tailwind.config.ts              # if needed beyond v4 defaults
 ├── components.json                 # shadcn/ui config
+├── electron/
+│   └── main.ts                     # Electron entry (starts embedded server, loads /control)
 ├── server/
-│   ├── index.ts                    # Express + Socket.IO server entry
-│   └── room.ts                     # Room state management
+│   ├── index.ts                    # Express + Socket.IO server entry + TopDeck proxy
+│   └── room.ts                     # Room state (cards, spotlight, stream table, name plates)
 ├── src/
+│   ├── env.d.ts                    # Global type declarations (__APP_VERSION__)
 │   ├── shared/
 │   │   ├── types.ts                # All shared TypeScript types
-│   │   ├── scryfall.ts             # Scryfall API client
+│   │   ├── scryfall.ts             # Scryfall API client (search, batch collection by oracle ID)
 │   │   ├── scrollrack.ts           # Scrollrack API client
-│   │   ├── topdeck.ts              # TopDeck.gg API client (calls server proxy)
+│   │   ├── topdeck.ts              # TopDeck.gg API client with localStorage cache
+│   │   ├── cards.ts                # Card payload builders, commander label helper
+│   │   ├── card-filter.ts          # Client-side Scryfall-syntax query parser & evaluator
 │   │   ├── socket.ts               # Socket.IO connection factory + hooks
-│   │   └── constants.ts            # Overlay dimensions, fade timings, etc.
+│   │   ├── constants.ts            # Overlay dimensions, fade timings, etc.
+│   │   └── components/
+│   │       └── ManaCost.tsx        # Renders mana cost strings as inline SVG symbols
 │   ├── components/ui/              # shadcn/ui components
 │   ├── caster/
-│   │   ├── index.html              # Vite entry point for /caster
-│   │   ├── main.tsx                # React mount
+│   │   ├── index.html
+│   │   ├── main.tsx
 │   │   ├── App.tsx                 # Caster workstation root
 │   │   └── components/
-│   │       ├── Toolbar.tsx         # Drawing tools, color picker, stroke size
-│   │       ├── Sidebar.tsx         # Tab container: Search + Decklist + Tournament
-│   │       ├── SearchPanel.tsx     # Scryfall search with draggable results
-│   │       ├── DecklistPanel.tsx   # Scrollrack format decklist loader
-│   │       ├── TournamentPanel.tsx # TopDeck.gg tournament browser (player list, decklists)
-│   │       ├── SettingsDialog.tsx  # API key, tournament ID, video feed URL config
-│   │       ├── PreviewCanvas.tsx   # Scaled 1920×1080 canvas wrapper
+│   │       ├── Toolbar.tsx         # Drawing tools, colors, sizes, fade toggle, clear actions
+│   │       ├── Sidebar.tsx         # Tab container: Search + Deck + Tournament
+│   │       ├── SearchPanel.tsx     # Scryfall search with draggable results + mana symbols
+│   │       ├── DecklistPanel.tsx   # Tournament-driven decklist browser (attendees, filter, sort)
+│   │       ├── TournamentPanel.tsx # Rounds, standings, stream pod selection, player click-through
+│   │       ├── SettingsDialog.tsx  # TopDeck API key, tournament ID, version display
+│   │       ├── PreviewCanvas.tsx   # Scaled 1920×1080 canvas wrapper + drop zone
 │   │       ├── CardLayer.tsx       # Draggable cards on canvas
-│   │       ├── DrawLayer.tsx       # Canvas2D drawing with auto-fade
-│   │       └── BottomStrip.tsx     # Active cards strip + quick actions
+│   │       ├── DrawLayer.tsx       # Canvas2D drawing with auto-fade toggle, custom cursors
+│   │       └── BottomStrip.tsx     # Active cards strip + spotlight/clear actions
 │   ├── control/
-│   │   ├── index.html              # Vite entry point for /control
+│   │   ├── index.html
 │   │   ├── main.tsx
-│   │   └── App.tsx                 # Producer panel (simpler, no drawing)
-│   └── overlay/
-│       ├── index.html              # Vite entry point for /overlay
+│   │   └── App.tsx                 # Producer panel (no drawing, has video feed publishing)
+│   ├── overlay/
+│   │   ├── index.html
+│   │   ├── main.tsx
+│   │   ├── App.tsx                 # Combined OBS overlay root (all layers, transparent bg)
+│   │   └── components/
+│   │       ├── CardRenderer.tsx    # Card display with enter/exit animations
+│   │       ├── DrawRenderer.tsx    # Drawing annotation renderer
+│   │       ├── Spotlight.tsx       # Full-screen cinematic card spotlight with mana symbols
+│   │       └── NamePlates.tsx      # 4-corner player name plates with commander + color identity
+│   ├── spotlight/                  # Standalone spotlight overlay (/spotlight)
+│   │   ├── index.html
+│   │   ├── main.tsx
+│   │   └── App.tsx
+│   ├── nameplates/                 # Standalone name plates overlay (/nameplates)
+│   │   ├── index.html
+│   │   ├── main.tsx
+│   │   └── App.tsx
+│   ├── annotations/                # Standalone cards + drawings overlay (/annotations)
+│   │   ├── index.html
+│   │   ├── main.tsx
+│   │   └── App.tsx
+│   └── decklist/                   # Standalone decklist overlay (/decklist, stub)
+│       ├── index.html
 │       ├── main.tsx
-│       ├── App.tsx                 # OBS overlay root (transparent bg)
-│       └── components/
-│           ├── CardRenderer.tsx    # Card display with enter/exit animations
-│           ├── DrawRenderer.tsx    # Drawing annotation renderer (auto-fade)
-│           └── Spotlight.tsx       # Full-screen cinematic card spotlight
+│       └── App.tsx
 ├── public/
-│   └── fonts/                      # Self-hosted fonts if needed
-└── dist/                           # Build output (gitignored)
+│   └── mana_symbols/               # SVG mana symbol icons (W.svg, U.svg, 2G.svg, etc.)
+├── dist/                           # Vite build output (gitignored)
+├── dist-electron/                  # esbuild electron bundle (gitignored)
+└── release/                        # electron-builder output (gitignored)
 ```
 
-This is a **multi-page Vite app**. Each of `/caster`, `/control`, and `/overlay` is a separate entry point with its own `index.html` and React root. Configure via `build.rollupOptions.input` in `vite.config.ts`. They share code from `src/shared/` and `src/components/ui/`.
+This is a **multi-page Vite app**. Each route (`/caster`, `/control`, `/overlay`, `/spotlight`, `/nameplates`, `/annotations`, `/decklist`) is a separate entry point with its own `index.html` and React root. Configure via `build.rollupOptions.input` in `vite.config.ts`. They share code from `src/shared/` and `src/components/ui/`.
+
+The overlay is available as a single combined source (`/overlay`) or as individual layers (`/spotlight`, `/nameplates`, `/annotations`, `/decklist`) for finer OBS control. The standalone overlays import components from `src/overlay/components/` — those remain the single source of truth for overlay rendering.
 
 ## Shared Types (`src/shared/types.ts`)
 
@@ -100,12 +129,17 @@ export interface ScryfallCard {
   scryfallId: string
   name: string
   manaCost: string
+  cmc: number
   typeLine: string
   oracleText: string
   artist: string
   setName: string
   rarity: string
   colors: string[]
+  colorIdentity: string[]
+  power: string | null
+  toughness: string | null
+  keywords: string[]
   imageUri: string         // normal size
   imageUriLarge: string    // large size (spotlight)
   imageUriSmall: string    // small thumbnail
@@ -199,13 +233,19 @@ export interface ScrollrackValidation {
 | `draw:undo` | `draw:undo` | (none) |
 | `draw:clear` | `draw:clear` | (none) |
 
+### Stream Table & Name Plates
+| Client → Server | Server → All/Others | Payload |
+|---|---|---|
+| `streamTable:set` | `streamTable:updated` | `TopDeckTable \| null` |
+| `namePlates:set` | `namePlates:updated` | `NamePlate[] \| null` |
+
 ### Bulk
 | Client → Server | Server → All | Payload |
 |---|---|---|
 | `cards:clearAll` | `state:full` (empty state) | (none) |
 
 ### On Connect
-Server sends `state:full` with current `RoomState` to the connecting client.
+Server sends `state:full` with current `RoomState`, plus `streamTable:updated` and `namePlates:updated` if set.
 
 Connection query params: `{ room: string, role: 'caster' | 'control' | 'overlay' }`.
 
@@ -226,6 +266,10 @@ Routes in production:
 - `GET /caster/*` → `dist/caster/index.html`
 - `GET /control/*` → `dist/control/index.html`
 - `GET /overlay/*` → `dist/overlay/index.html`
+- `GET /spotlight/*` → `dist/spotlight/index.html`
+- `GET /nameplates/*` → `dist/nameplates/index.html`
+- `GET /annotations/*` → `dist/annotations/index.html`
+- `GET /decklist/*` → `dist/decklist/index.html`
 - `POST /api/topdeck/*` → proxy to TopDeck.gg API (see TopDeck.gg section below)
 
 In development, Vite+ dev server handles the frontend and the Express server runs alongside (use `concurrently`).
@@ -346,24 +390,31 @@ Three presets: 3px (thin), 6px (medium, default), 10px (thick).
 - Each result has `+` button (add at random position) and `◉` button (add + spotlight)
 - Search results cached in memory by query string
 
-### Decklist Panel
-- Textarea for pasting Scrollrack format decklists
-- "Load Deck" button validates via Scrollrack, then progressively fetches card images from Scryfall
-- Cards grouped by section (Commanders, Mainboard) with sticky section headers
-- Each card in the loaded deck has the same drag/add/spotlight actions as search results
-- "Clear" button resets the decklist
+### Decklist Panel (Tournament-Driven)
+- Fetches player list from TopDeck.gg `/attendees` endpoint (staff/owner access required for decklists)
+- Players shown with standing, commander name(s), and "Deck →" indicator
+- **Stream Pod section**: when a stream pod is set, those players appear at the top in a highlighted section
+- Clicking a player batch-fetches their deck via Scryfall collection API (oracle IDs from deckObj)
+- Deck view shows cards grouped by section (Commanders, Mainboard) or by type (Commander, Planeswalker, Creature, etc.)
+- **Sort controls**: group by Section or Type, sort by Name or Mana Value, asc/desc
+- **Filter bar**: client-side Scryfall-syntax query parser supporting `t:instant`, `mv<=2`, `o:"draw"`, `c:u`, `-c:r`, `(c:u or c:g)`, quoted values, and plain name search
+- Card names link to Scryfall for oracle text inspection
+- Each card shows mana symbols (rendered from `/mana_symbols/` SVGs), drag/add/spotlight actions
+- API results cached in localStorage with "Pull Latest" for manual refresh
+- Handles deckObj (structured), raw decklist text (Scrollrack validation), and URL decklists (external link)
 
 ### Bottom Strip
 - Horizontal scrollable list of `OverlayCard` chips currently on the overlay
-- Each chip: tiny thumbnail, truncated name, `◉` spotlight toggle, `×` remove button
-- "Spotlight Off" button dismisses any active spotlight
+- Each chip: tiny thumbnail, truncated name, spotlight toggle icon, remove icon
+- Spotlight off icon button dismisses any active spotlight
 - "Clear All" button with confirmation removes all cards
+- All icon buttons have tooltips and minimum 28px touch targets
 
 ### Card Interactions on Canvas
 - **Drag to move**: Pointer events (pointerdown/move/up) with capture. Emits `card:move` on drag.
 - **Right-click to remove**: Emits `card:remove`.
 - **Double-click to spotlight**: Emits `spotlight:toggle`.
-- **Drag from search results**: HTML5 drag-and-drop. On drop, calculate canvas coordinates from mouse position, accounting for scale transform. Emit `card:add`.
+- **Drag from sidebar**: HTML5 drag-and-drop handled on PreviewCanvas wrapper (works with any active tool, not just select). On drop, calculate canvas coordinates accounting for scale transform. Emit `card:add`.
 
 ## Producer Panel (`/control`)
 
@@ -375,16 +426,33 @@ Simpler than the caster app. No drawing tools.
 - Can move, remove, spotlight any card
 - Has authority to override anything casters place
 
-## Overlay (`/overlay`)
+## Overlays
 
-The OBS browser source. Must be lightweight and performant.
+OBS browser sources. Must be lightweight and performant. All use viewport 1920×1080 with `background: transparent`. No UI chrome, no interactivity. Pure display.
 
-- Viewport: 1920×1080, `background: transparent`
-- Cards: absolutely positioned elements with `<img>`. Enter animation: `scale(0.7) → scale(1)` with overshoot easing (0.4s). Exit animation: `scale(1) → scale(0.8)` with fade (0.3s).
-- **Spotlight mode**: Full-screen dark radial-gradient backdrop at `z-index: 9000`. Card image at 480×670 with pulsing gold glow shadow. Card name (Bebas Neue, 56px, gold `#c8aa6e`), type line, mana cost, artist credit displayed beside the card.
+### Combined Overlay (`/overlay`)
+
+Renders all layers in a single browser source — cards, drawings, spotlight, and name plates. Good for simple OBS setups.
+
+### Standalone Overlay Layers
+
+For advanced OBS setups, each layer is available as a separate browser source. This allows independent z-ordering, visibility toggles, and transitions per layer in OBS.
+
+| Route | Layer | What it renders |
+|-------|-------|-----------------|
+| `/spotlight` | Spotlight | Full-screen card spotlight only |
+| `/nameplates` | Name Plates | 4-corner player name plates only |
+| `/annotations` | Annotations | Cards on canvas + drawing annotations (no spotlight, no name plates) |
+| `/decklist` | Decklist | Decklist overlay (stub — feature in progress) |
+
+All standalone overlays connect with role `"overlay"` and share the same room state. They import components from `src/overlay/components/`.
+
+### Overlay Component Details
+
+- **Cards**: absolutely positioned elements with `<img>`. Enter animation: `scale(0.7) → scale(1)` with overshoot easing (0.4s). Exit animation: `scale(1) → scale(0.8)` with fade (0.3s).
+- **Spotlight mode**: Full-screen dark radial-gradient backdrop at `z-index: 9000`. Card image at 480×670 with pulsing gold glow shadow. Card name (Bebas Neue, 56px, gold), mana cost rendered as SVG symbols, type line, artist credit.
 - **Drawing layer**: Same render loop as caster — receives `draw:stroke` events via Socket.IO, renders with identical auto-fade timing (6s delay, 2s fade).
-- No UI chrome, no interactivity. Pure display.
-- Small connection status dot (top-right corner, red/green) for setup — not visible on stream due to positioning.
+- **Name plates**: When a stream pod is set, 4 player name plates render in the corners (TL=seat 1, TR=seat 2, BR=seat 3, BL=seat 4 clockwise). Each shows player name (Bebas Neue, 28px), commander name + color identity mana symbols. Plates hug corners with no margin, inner corner rounded. Near-opaque dark backdrop.
 
 ## Design System
 
@@ -417,17 +485,37 @@ irm https://vite.plus/ps1 | iex       # Windows PowerShell
 vp install
 
 # Development (runs Vite+ dev server + Express server concurrently)
-vp dev          # or: concurrently "vp dev" "tsx watch server/index.ts"
+# Server loads .env.local for TOPDECK_API_KEY
+pnpm dev
 
 # Production build
 vp build
 
 # Start production server (serves built assets)
-node server/index.ts
+pnpm start
 
 # Lint + format + type-check
 vp check
+
+# Electron development (build + run)
+pnpm electron:dev
+
+# Electron distribution build (macOS + Windows)
+pnpm electron:build
 ```
+
+### Environment Variables
+
+Create `.env.local` with:
+```
+TOPDECK_API_KEY=your-api-key-here
+```
+
+The server reads this as a fallback when no client-side API key is provided. Get your key at https://topdeck.gg/account.
+
+### Versioning
+
+App version is defined in `package.json` `"version"` and injected at build time via `__APP_VERSION__`. Displayed in the toolbar and settings dialog. Bump before each Electron release.
 
 ## Vite Config Notes
 
@@ -642,14 +730,24 @@ Add a "Video Feed" section to the Settings tab/modal:
 - Drawing and card layers remain on top of the video
 - If feed disconnects, fall back to checkerboard with a reconnect indicator
 
-## Roadmap (Not in v1 — context for future)
+## Implemented Features (v0.1.3)
+
+- **Standalone overlay layers** — Overlay split into independent browser sources (`/spotlight`, `/nameplates`, `/annotations`, `/decklist`) for granular OBS control. Combined `/overlay` still available.
+- **Player name plates** — 4-corner overlay name plates with player name, commander name, and color identity mana symbols. Synced via Socket.IO when stream pod is selected.
+- **Annotation fade toggle** — Toolbar button to toggle auto-fade on/off. When off, drawings persist until manually cleared.
+- **Electron packaging** — esbuild bundles electron/server into single JS file, electron-builder produces macOS arm64 (.dmg/.zip) and Windows x64 (.exe/.zip) distributables.
+- **Tournament-driven decklists** — Deck tab fetches from TopDeck.gg `/attendees` endpoint (staff access). Scryfall-syntax card filter with `t:`, `o:`, `c:`, `mv<=`, negation, OR/parentheses.
+- **Stream pod workflow** — Select a pod in Tournament tab, shared across all clients via server. Pod players highlighted in Deck tab.
+- **Mana symbols** — SVG mana symbols rendered throughout UI (card rows, spotlight, name plates) via `ManaCost` component.
+- **API caching** — TopDeck responses cached in localStorage. Manual "Pull Latest" to refresh. Survives page reload.
+- **Drag-and-drop with any tool** — Cards can be dragged from sidebar onto canvas even when a draw tool is active (drop zone on PreviewCanvas wrapper).
+- **Custom draw cursors** — Pen shows circle sized to brush width/color, arrow and circle show crosshair with shape hint.
+
+## Roadmap (future)
 
 1. **Life totals** — 4-player tracking at 40 life with commander damage per opponent, rendered on the overlay.
-2. **Player name plates** — Display player names with commander color identity indicators on the overlay. Data from TopDeck.gg API.
-3. **Card resize handles** — Drag corners to resize cards on the canvas.
-4. **Pin annotations** — Hold Shift while drawing to prevent auto-fade.
-5. **Producer OBS WebSocket control** — Control OBS scenes directly via the OBS WebSocket API (built into OBS 28+).
-6. **Stream Deck integration** — Map Stream Deck buttons to server actions (clear cards, toggle spotlight, next card in queue).
-7. **Authentication** — Role-based access (caster vs producer) with simple password per room.
-8. **Persistent state** — Server state is in-memory only. Persist to JSON or SQLite for crash recovery.
-9. **Electron packaging** — Wrap caster app in Electron via `vite-plugin-electron` for standalone desktop distribution. The overlay stays as a browser source.
+2. **Card resize handles** — Drag corners to resize cards on the canvas.
+3. **Producer OBS WebSocket control** — Control OBS scenes directly via the OBS WebSocket API (built into OBS 28+).
+4. **Stream Deck integration** — Map Stream Deck buttons to server actions (clear cards, toggle spotlight, next card in queue).
+5. **Authentication** — Role-based access (caster vs producer) with simple password per room.
+6. **Persistent state** — Server state is in-memory only. Persist to JSON or SQLite for crash recovery.

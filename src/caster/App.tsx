@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DrawTool, TopDeckConfig } from "@shared/types";
+import type { DrawTool, TopDeckConfig, TopDeckTable, NamePlate } from "@shared/types";
 import { DRAW_COLORS, DRAW_WIDTHS, OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
-import { useRoom, useSocket } from "@shared/socket";
+import { useRoom, useSocket, getRoom } from "@shared/socket";
 import { Toolbar } from "./components/Toolbar";
 import { Sidebar } from "./components/Sidebar";
 import { PreviewCanvas } from "./components/PreviewCanvas";
@@ -18,22 +18,56 @@ export function App() {
   const [drawTool, setDrawTool] = useState<DrawTool>("select");
   const [drawColor, setDrawColor] = useState<string>(DRAW_COLORS[0]);
   const [drawWidth, setDrawWidth] = useState<number>(DRAW_WIDTHS[1]);
+  const [autoFade, setAutoFade] = useState(true);
 
   // Sidebar
   const [activeTab, setActiveTab] = useState("search");
+  const [streamTable, setStreamTableLocal] = useState<TopDeckTable | null>(null);
+  const setStreamTable = useCallback((table: TopDeckTable | null, plates: NamePlate[] | null = null) => {
+    setStreamTableLocal(table);
+    emit("streamTable:set", table);
+    emit("namePlates:set", plates);
+  }, [emit]);
+
+  // Receive stream table changes from other clients
+  useEffect(() => {
+    const s = socket.current;
+    if (!s) return;
+    const handler = (table: TopDeckTable | null) => setStreamTableLocal(table);
+    s.on("streamTable:updated", handler);
+    return () => { s.off("streamTable:updated", handler); };
+  }, [socket]);
 
   // Settings
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [topDeckConfig, setTopDeckConfig] = useState<TopDeckConfig | null>(
-    () => {
-      try {
-        const saved = localStorage.getItem("topdeck-config");
-        return saved ? JSON.parse(saved) : null;
-      } catch {
-        return null;
+  const room = getRoom();
+  const [hasServerKey, setHasServerKey] = useState(false);
+  const [topDeckConfig, setTopDeckConfig] = useState<TopDeckConfig | null>(null);
+
+  // Receive TopDeck config from producer via server
+  useEffect(() => {
+    const s = socket.current;
+    if (!s) return;
+    const handler = (data: { tournamentId: string } | null) => {
+      if (data) {
+        setTopDeckConfig({ apiKey: "", tournamentId: data.tournamentId, room });
+        setHasServerKey(true);
+      } else {
+        setTopDeckConfig(null);
+        setHasServerKey(false);
       }
-    },
-  );
+    };
+    s.on("topDeckConfig:updated", handler);
+    return () => { s.off("topDeckConfig:updated", handler); };
+  }, [socket, room]);
+
+  // On mount, check if server already has config (for reconnects / late joins)
+  useEffect(() => {
+    fetch(`/api/topdeck/has-key?room=${encodeURIComponent(room)}`)
+      .then((r) => r.json())
+      .then((d) => setHasServerKey(!!d.hasKey))
+      .catch(() => {});
+  }, [room]);
 
   // Refs
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -146,8 +180,12 @@ export function App() {
           setColor={setDrawColor}
           strokeWidth={drawWidth}
           setStrokeWidth={setDrawWidth}
+          autoFade={autoFade}
+          setAutoFade={setAutoFade}
           onUndo={handleUndo}
           onClearDrawings={handleClearDrawings}
+          onClearSpotlight={() => emit("spotlight:off")}
+          spotlightActive={state.spotlight != null}
           onClearCards={handleClearCards}
           onClearAll={handleClearAll}
           onOpenSettings={() => setSettingsOpen(true)}
@@ -161,12 +199,15 @@ export function App() {
         setActiveTab={setActiveTab}
         emit={emit}
         topDeckConfig={topDeckConfig}
+        hasServerKey={hasServerKey}
+        streamTable={streamTable}
+        setStreamTable={setStreamTable}
         searchInputRef={searchInputRef}
       />
 
       {/* Preview Canvas */}
       <div ref={canvasContainerRef} className="relative overflow-hidden bg-bg-base">
-        <PreviewCanvas socket={socket} connected={connected}>
+        <PreviewCanvas socket={socket} connected={connected} emit={emit} isEmpty={state.cards.length === 0}>
           <CardLayer
             cards={state.cards}
             scale={canvasScale}
@@ -182,6 +223,7 @@ export function App() {
             socket={socket}
             connected={connected}
             active={isDrawing}
+            autoFade={autoFade}
           />
         </PreviewCanvas>
       </div>
@@ -201,6 +243,8 @@ export function App() {
         onClose={() => setSettingsOpen(false)}
         topDeckConfig={topDeckConfig}
         onTopDeckConfigChange={setTopDeckConfig}
+        hasServerKey={hasServerKey}
+        role="caster"
       />
     </div>
   );

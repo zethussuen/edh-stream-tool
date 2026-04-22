@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
-import type { OverlayCard, ScryfallCard } from "@shared/types";
-import { DEFAULT_CARD_HEIGHT, DEFAULT_CARD_WIDTH, OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
+import type { OverlayCard } from "@shared/types";
+import { OVERLAY_WIDTH } from "@shared/constants";
 
 interface Props {
   cards: OverlayCard[];
@@ -69,46 +69,8 @@ export function CardLayer({ cards, scale, interactive, emit }: Props) {
     [emit],
   );
 
-  const onDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      const raw = e.dataTransfer.getData("application/json");
-      if (!raw) return;
-
-      const card: ScryfallCard = JSON.parse(raw);
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-      const x = Math.round((e.clientX - rect.left) / scale - DEFAULT_CARD_WIDTH / 2);
-      const y = Math.round((e.clientY - rect.top) / scale - DEFAULT_CARD_HEIGHT / 2);
-
-      emit("card:add", {
-        scryfallId: card.scryfallId,
-        name: card.name,
-        imageUri: card.imageUri,
-        imageUriLarge: card.imageUriLarge,
-        artCropUri: card.artCropUri,
-        artist: card.artist,
-        manaCost: card.manaCost,
-        typeLine: card.typeLine,
-        oracleText: card.oracleText,
-        x: Math.max(0, Math.min(x, OVERLAY_WIDTH - DEFAULT_CARD_WIDTH)),
-        y: Math.max(0, Math.min(y, OVERLAY_HEIGHT - DEFAULT_CARD_HEIGHT)),
-        width: DEFAULT_CARD_WIDTH,
-        height: DEFAULT_CARD_HEIGHT,
-        spotlight: false,
-      });
-    },
-    [scale, emit],
-  );
-
-  const onDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
-  }, []);
-
   return (
     <div
-      onDrop={onDrop}
-      onDragOver={onDragOver}
       style={{
         position: "absolute",
         inset: 0,
@@ -121,6 +83,7 @@ export function CardLayer({ cards, scale, interactive, emit }: Props) {
           key={card.id}
           src={card.imageUri}
           alt={card.name}
+          title="Drag to move · Double-click to spotlight · Right-click to remove"
           draggable={false}
           style={{
             position: "absolute",

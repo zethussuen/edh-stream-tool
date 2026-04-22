@@ -1,5 +1,8 @@
 import { useCallback } from "react";
 import type { OverlayCard, SpotlightData } from "@shared/types";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { SpotlightIcon, LightbulbOffIcon } from "@hugeicons/core-free-icons";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@shared/components/ui/tooltip";
 
 interface Props {
   cards: OverlayCard[];
@@ -44,47 +47,65 @@ export function BottomStrip({ cards, spotlight, emit }: Props) {
             <span className="text-xs text-text-primary max-w-[100px] truncate">
               {card.name}
             </span>
-            <button
-              onClick={() => emit("spotlight:toggle", { id: card.id })}
-              title="Toggle spotlight"
-              className={`text-xs transition-colors ${
-                spotlight?.name === card.name
-                  ? "text-gold"
-                  : "text-text-muted hover:text-gold"
-              }`}
-            >
-              ◉
-            </button>
-            <button
-              onClick={() => emit("card:remove", { id: card.id })}
-              title="Remove"
-              className="text-xs text-text-muted hover:text-status-red transition-colors"
-            >
-              ×
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => emit("spotlight:toggle", { id: card.id })}
+                  className={`h-7 w-7 flex items-center justify-center rounded transition-colors ${
+                    spotlight?.name === card.name
+                      ? "text-gold hover:bg-gold/10"
+                      : "text-text-muted hover:text-gold hover:bg-bg-overlay"
+                  }`}
+                >
+                  <HugeiconsIcon icon={SpotlightIcon} size={18} color="currentColor" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={6}>Toggle spotlight</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => emit("card:remove", { id: card.id })}
+                  className="h-7 w-7 flex items-center justify-center rounded text-text-muted hover:text-status-red hover:bg-status-red/10 transition-colors"
+                >
+                  <span className="text-base leading-none">×</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={6}>Remove</TooltipContent>
+            </Tooltip>
           </div>
         ))}
         {cards.length === 0 && (
-          <span className="text-xs text-text-muted italic">No cards</span>
+          <span className="text-xs text-text-muted italic">Search or drag cards onto the canvas to add them</span>
         )}
       </div>
 
       {/* Actions */}
       <div className="flex gap-2 shrink-0">
-        <button
-          onClick={() => emit("spotlight:off")}
-          disabled={!spotlight}
-          className="h-7 rounded bg-bg-surface px-3 text-xs text-text-dim hover:bg-bg-overlay disabled:opacity-40 transition-colors"
-        >
-          Spotlight Off
-        </button>
-        <button
-          onClick={clearAll}
-          disabled={cards.length === 0}
-          className="h-7 rounded bg-bg-surface px-3 text-xs text-status-red hover:bg-status-red/10 disabled:opacity-40 transition-colors"
-        >
-          Clear All
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => emit("spotlight:off")}
+              disabled={!spotlight}
+              className="h-9 w-9 flex items-center justify-center rounded bg-bg-surface text-text-dim hover:bg-bg-overlay disabled:opacity-40 transition-colors"
+            >
+              <HugeiconsIcon icon={LightbulbOffIcon} size={20} color="currentColor" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={6}>Spotlight off</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={clearAll}
+              disabled={cards.length === 0}
+              className="h-9 rounded bg-bg-surface px-4 text-xs text-status-red hover:bg-status-red/10 disabled:opacity-40 transition-colors"
+            >
+              Clear All
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={6}>Remove all cards from overlay</TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );

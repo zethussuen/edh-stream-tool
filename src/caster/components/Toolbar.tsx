@@ -11,8 +11,12 @@ interface Props {
   setColor: (color: string) => void;
   strokeWidth: number;
   setStrokeWidth: (w: number) => void;
+  autoFade: boolean;
+  setAutoFade: (v: boolean) => void;
   onUndo: () => void;
   onClearDrawings: () => void;
+  onClearSpotlight: () => void;
+  spotlightActive: boolean;
   onClearCards: () => void;
   onClearAll: () => void;
   onOpenSettings: () => void;
@@ -41,8 +45,12 @@ export function Toolbar({
   setColor,
   strokeWidth,
   setStrokeWidth,
+  autoFade,
+  setAutoFade,
   onUndo,
   onClearDrawings,
+  onClearSpotlight,
+  spotlightActive,
   onClearCards,
   onClearAll,
   onOpenSettings,
@@ -55,6 +63,7 @@ export function Toolbar({
       {/* Brand */}
       <span className="font-heading text-xl tracking-wider text-gold mr-4">
         cEDH STREAM TOOL
+        <span className="text-[10px] text-text-muted font-mono ml-1 align-middle">v{__APP_VERSION__}</span>
       </span>
 
       {/* Separator */}
@@ -133,6 +142,27 @@ export function Toolbar({
 
       <div className="h-6 w-px bg-border" />
 
+      {/* Auto-fade toggle */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={() => setAutoFade(!autoFade)}
+            className={`h-8 rounded px-3 text-xs transition-colors ${
+              autoFade
+                ? "bg-gold text-bg-base"
+                : "bg-bg-surface text-text-dim hover:bg-bg-overlay"
+            }`}
+          >
+            Fade
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" sideOffset={6}>
+          {autoFade ? "Drawings auto-fade (click to pin)" : "Drawings persist (click to auto-fade)"}
+        </TooltipContent>
+      </Tooltip>
+
+      <div className="h-6 w-px bg-border" />
+
       {/* Undo / Clear */}
       <Tooltip>
         <TooltipTrigger asChild>
@@ -163,6 +193,23 @@ export function Toolbar({
       <Tooltip>
         <TooltipTrigger asChild>
           <button
+            onClick={onClearSpotlight}
+            className={`h-8 rounded px-3 text-xs transition-colors ${
+              spotlightActive
+                ? "bg-gold/20 text-gold border border-gold/40 hover:bg-gold/30"
+                : "bg-bg-surface text-text-dim hover:bg-bg-overlay hover:text-text-primary"
+            }`}
+          >
+            Clear spotlight
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" sideOffset={6}>
+          Dismiss spotlight <kbd className="ml-1 rounded bg-background/20 px-1 py-0.5 text-[10px] font-mono">Esc</kbd>
+        </TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
             onClick={onClearCards}
             className="h-8 rounded bg-bg-surface px-3 text-xs text-text-dim hover:bg-bg-overlay hover:text-text-primary transition-colors"
           >
@@ -188,6 +235,26 @@ export function Toolbar({
       </Tooltip>
 
       <div className="flex-1" />
+
+      {/* Keyboard shortcuts help */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            className="h-8 w-8 flex items-center justify-center rounded bg-bg-surface text-text-dim hover:bg-bg-overlay hover:text-text-primary transition-colors text-xs font-mono"
+          >
+            ?
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" sideOffset={6} className="max-w-none">
+          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
+            <kbd className="font-mono text-[10px]">V P A C</kbd><span>Select / Pen / Arrow / Circle</span>
+            <kbd className="font-mono text-[10px]">X</kbd><span>Clear drawings</span>
+            <kbd className="font-mono text-[10px]">Ctrl+Z</kbd><span>Undo drawing</span>
+            <kbd className="font-mono text-[10px]">Esc</kbd><span>Dismiss spotlight</span>
+            <kbd className="font-mono text-[10px]">/</kbd><span>Focus search</span>
+          </div>
+        </TooltipContent>
+      </Tooltip>
 
       {/* Settings */}
       <Tooltip>

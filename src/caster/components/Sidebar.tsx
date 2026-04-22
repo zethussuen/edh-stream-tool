@@ -1,5 +1,5 @@
-import { type RefObject } from "react";
-import type { TopDeckConfig } from "@shared/types";
+import { type RefObject, useCallback, useState } from "react";
+import type { TopDeckConfig, TopDeckTable, NamePlate } from "@shared/types";
 import { SearchPanel } from "./SearchPanel";
 import { DecklistPanel } from "./DecklistPanel";
 import { TournamentPanel } from "./TournamentPanel";
@@ -9,6 +9,9 @@ interface Props {
   setActiveTab: (tab: string) => void;
   emit: (event: string, data?: unknown) => void;
   topDeckConfig: TopDeckConfig | null;
+  hasServerKey: boolean;
+  streamTable: TopDeckTable | null;
+  setStreamTable: (table: TopDeckTable | null, plates: NamePlate[] | null) => void;
   searchInputRef: RefObject<HTMLInputElement | null>;
 }
 
@@ -23,8 +26,27 @@ export function Sidebar({
   setActiveTab,
   emit,
   topDeckConfig,
+  hasServerKey,
+  streamTable,
+  setStreamTable,
   searchInputRef,
 }: Props) {
+  const [pendingPlayerId, setPendingPlayerId] = useState<string | null>(null);
+
+  const handleSetStreamTable = useCallback((table: TopDeckTable | null, plates: NamePlate[] | null) => {
+    setStreamTable(table, plates);
+    if (table) setActiveTab("deck");
+  }, [setStreamTable, setActiveTab]);
+
+  const handleSelectPlayer = useCallback((playerId: string) => {
+    setPendingPlayerId(playerId);
+    setActiveTab("deck");
+  }, [setActiveTab]);
+
+  const handlePlayerConsumed = useCallback(() => {
+    setPendingPlayerId(null);
+  }, []);
+
   return (
     <div className="flex flex-col border-r border-border bg-bg-raised overflow-hidden">
       {/* Tab buttons */}
@@ -49,9 +71,24 @@ export function Sidebar({
         {activeTab === "search" && (
           <SearchPanel emit={emit} searchInputRef={searchInputRef} />
         )}
-        {activeTab === "deck" && <DecklistPanel emit={emit} />}
+        {activeTab === "deck" && (
+          <DecklistPanel
+            emit={emit}
+            topDeckConfig={topDeckConfig}
+            hasServerKey={hasServerKey}
+            streamTable={streamTable}
+            pendingPlayerId={pendingPlayerId}
+            onPlayerConsumed={handlePlayerConsumed}
+          />
+        )}
         {activeTab === "tournament" && (
-          <TournamentPanel config={topDeckConfig} emit={emit} />
+          <TournamentPanel
+            config={topDeckConfig}
+            hasServerKey={hasServerKey}
+            streamTable={streamTable}
+            onSetStreamTable={handleSetStreamTable}
+            onSelectPlayer={handleSelectPlayer}
+          />
         )}
       </div>
     </div>

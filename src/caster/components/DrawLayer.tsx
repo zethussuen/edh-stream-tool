@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import type { DrawStroke, DrawStrokeLocal, DrawTool } from "@shared/types";
 import {
   FADE_DELAY,
@@ -9,6 +9,28 @@ import {
 import { drawStroke } from "@shared/drawing";
 import type { Socket } from "socket.io-client";
 import { useDrawReceiver } from "@shared/socket";
+
+function buildCursor(tool: DrawTool, strokeWidth: number, color: string, scale: number): string {
+  if (tool === "pen") {
+    // Circle cursor sized to brush — shows exact stroke footprint
+    const r = Math.max((strokeWidth * scale) / 2, 3);
+    const size = Math.ceil(r * 2 + 2);
+    const c = size / 2;
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'><circle cx='${c}' cy='${c}' r='${r}' fill='none' stroke='${encodeURIComponent(color)}' stroke-width='1.5' opacity='0.8'/><circle cx='${c}' cy='${c}' r='1' fill='${encodeURIComponent(color)}'/></svg>`;
+    return `url("data:image/svg+xml,${svg}") ${c} ${c}, crosshair`;
+  }
+  if (tool === "arrow") {
+    // Crosshair with a small arrow hint
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><line x1='12' y1='0' x2='12' y2='24' stroke='white' stroke-width='1' opacity='0.6'/><line x1='0' y1='12' x2='24' y2='12' stroke='white' stroke-width='1' opacity='0.6'/><polyline points='16,6 20,2 14,2' fill='none' stroke='white' stroke-width='1.5' opacity='0.8'/></svg>`;
+    return `url("data:image/svg+xml,${svg}") 12 12, crosshair`;
+  }
+  if (tool === "circle") {
+    // Crosshair with small circle hint
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><line x1='12' y1='0' x2='12' y2='24' stroke='white' stroke-width='1' opacity='0.6'/><line x1='0' y1='12' x2='24' y2='12' stroke='white' stroke-width='1' opacity='0.6'/><circle cx='12' cy='12' r='6' fill='none' stroke='white' stroke-width='1.5' opacity='0.8'/></svg>`;
+    return `url("data:image/svg+xml,${svg}") 12 12, crosshair`;
+  }
+  return "default";
+}
 
 export interface DrawLayerHandle {
   undo: () => void;
@@ -23,6 +45,7 @@ interface Props {
   socket: React.RefObject<Socket | null>;
   connected: boolean;
   active: boolean;
+  autoFade: boolean;
 }
 
 export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
@@ -33,6 +56,7 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
   socket,
   connected,
   active,
+  autoFade,
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const strokesRef = useRef<DrawStrokeLocal[]>([]);
@@ -64,9 +88,9 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
     if (stroke.senderId) remoteProgressRef.current.delete(stroke.senderId);
     strokesRef.current.push({
       ...stroke,
-      fadeStart: Date.now() + FADE_DELAY,
+      fadeStart: autoFade ? Date.now() + FADE_DELAY : Infinity,
     });
-  }, []);
+  }, [autoFade]);
 
   const onRemoteUndo = useCallback(() => {
     strokesRef.current.pop();
@@ -170,10 +194,10 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
 
     strokesRef.current.push({
       ...stroke,
-      fadeStart: Date.now() + FADE_DELAY,
+      fadeStart: autoFade ? Date.now() + FADE_DELAY : Infinity,
     });
     socket.current?.emit("draw:stroke", stroke);
-  }, [color, strokeWidth, socket]);
+  }, [color, strokeWidth, socket, autoFade]);
 
   // Render loop
   useEffect(() => {
@@ -251,6 +275,11 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
     return () => cancelAnimationFrame(rafRef.current);
   }, [color, strokeWidth]);
 
+  const cursor = useMemo(
+    () => active ? buildCursor(tool, strokeWidth, color, scale) : "default",
+    [active, tool, strokeWidth, color, scale],
+  );
+
   return (
     <canvas
       ref={canvasRef}
@@ -266,7 +295,7 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
         height: OVERLAY_HEIGHT,
         zIndex: 20,
         pointerEvents: active ? "auto" : "none",
-        cursor: active ? "crosshair" : "default",
+        cursor,
       }}
     />
   );

@@ -87,10 +87,14 @@ export function useFeedPublisher(socket: React.RefObject<Socket | null>, connect
     socket.current?.emit("feed:stopped");
   }, [socket]);
 
-  const startCapture = useCallback(async () => {
+  const startCapture = useCallback(async (deviceId?: string) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1920 }, height: { ideal: 1080 } },
+        video: {
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+        },
         audio: false,
       });
       streamRef.current = stream;

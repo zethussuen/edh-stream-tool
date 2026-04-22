@@ -1,16 +1,19 @@
 {
   "name": "cedh-stream-tool",
-  "version": "0.1.0",
+  "version": "0.1.5",
+  "description": "Real-time stream overlay tool for casting cEDH tournaments",
+  "author": "eldrazi.dev",
   "private": true,
   "type": "module",
   "main": "electron/main.ts",
   "scripts": {
-    "dev": "concurrently -k -n vite,server -c cyan,green \"vp dev\" \"tsx watch server/index.ts\"",
+    "dev": "concurrently -k -n vite,server -c cyan,green \"vp dev\" \"node --env-file=.env.local --import tsx --watch server/index.ts\"",
     "build": "vp build",
-    "start": "NODE_ENV=production node --import tsx server/index.ts",
+    "start": "NODE_ENV=production node --env-file=.env.local --import tsx server/index.ts",
     "check": "vp check",
+    "electron:compile": "esbuild electron/main.ts --bundle --platform=node --outfile=dist-electron/main.js --format=esm --external:electron --alias:@shared=./src/shared --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\"",
     "electron:dev": "vp build && NODE_OPTIONS='--import tsx' electron .",
-    "electron:build": "vp build && electron-builder --mac --win"
+    "electron:build": "vp build && pnpm electron:compile && electron-builder --mac --arm64 && electron-builder --win --x64"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
@@ -44,5 +47,33 @@
     "typescript": "^5.8.3",
     "vite-plus": "^0.1.15"
   },
-  "packageManager": "pnpm@10.33.0"
+  "packageManager": "pnpm@10.33.0",
+  "build": {
+    "appId": "eldrazi.cedh-stream-tool",
+    "productName": "cEDH Stream Tool",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "dist-electron/main.js"
+    },
+    "mac": {
+      "target": [
+        "zip"
+      ],
+      "category": "public.app-category.utilities",
+      "icon": "build/icon.icns"
+    },
+    "win": {
+      "target": [
+        "zip"
+      ],
+      "icon": "build/icon.png"
+    }
+  }
 }

@@ -4,12 +4,17 @@ export interface ScryfallCard {
   scryfallId: string;
   name: string;
   manaCost: string;
+  cmc: number;
   typeLine: string;
   oracleText: string;
   artist: string;
   setName: string;
   rarity: string;
   colors: string[];
+  colorIdentity: string[];
+  power: string | null;
+  toughness: string | null;
+  keywords: string[];
   imageUri: string;
   imageUriLarge: string;
   imageUriSmall: string;
@@ -101,6 +106,16 @@ export interface ScrollrackValidation {
 export interface TopDeckConfig {
   apiKey: string;
   tournamentId: string;
+  room?: string;
+}
+
+export interface TopDeckEventData {
+  lat?: number;
+  lng?: number;
+  city?: string;
+  state?: string;
+  location?: string;
+  headerImage?: string;
 }
 
 export interface TopDeckTournament {
@@ -109,6 +124,11 @@ export interface TopDeckTournament {
     game: string;
     format: string;
     startDate: number;
+    endDate?: number;
+    status?: string;
+    swissNum?: number;
+    topCut?: number;
+    eventData?: TopDeckEventData;
   };
   standings: TopDeckStanding[];
   rounds: TopDeckRound[];
@@ -117,6 +137,8 @@ export interface TopDeckTournament {
 export interface TopDeckStanding {
   standing: number;
   name: string;
+  discord?: string;
+  discordId?: string;
   id: string | null;
   decklist: string | null;
   deckObj: Record<
@@ -125,9 +147,19 @@ export interface TopDeckStanding {
   > | null;
   points: number;
   winRate: number;
+  opponentWinRate: number;
+  gameWinRate?: number;
+  opponentGameWinRate?: number;
   wins?: number;
+  winsSwiss?: number;
+  winsBracket?: number;
+  winRateSwiss?: number;
+  winRateBracket?: number;
   losses?: number;
+  lossesSwiss?: number;
+  lossesBracket?: number;
   draws?: number;
+  byes?: number;
 }
 
 export interface TopDeckRound {
@@ -145,7 +177,30 @@ export interface TopDeckTable {
 
 export interface TopDeckPlayer {
   name: string;
+  discord?: string;
+  discordId?: string;
   id: string | null;
+  decklist: string | null;
+  deckObj: Record<
+    string,
+    Record<string, { id: string; count: number }>
+  > | null;
+}
+
+export interface NamePlate {
+  name: string;
+  deckName: string | null;
+  colorIdentity: string[];
+}
+
+export interface TopDeckAttendee {
+  uid: string;
+  name: string;
+  email?: string;
+  discord?: string;
+  discordId?: string;
+  status: string;
+  standing?: number;
   decklist: string | null;
   deckObj: Record<
     string,
