@@ -103,6 +103,10 @@ export function startServer(distDir?: string): Promise<ServerInstance> {
     if (tdConfig) {
       socket.emit("topDeckConfig:updated", { tournamentId: tdConfig.tournamentId });
     }
+    const decklistOverlay = rooms.getDecklistOverlay(room);
+    if (decklistOverlay) {
+      socket.emit("decklist:updated", decklistOverlay);
+    }
 
     // ── Card lifecycle ──
 
@@ -169,6 +173,11 @@ export function startServer(distDir?: string): Promise<ServerInstance> {
     socket.on("namePlates:set", (data) => {
       rooms.setNamePlates(room, data);
       socket.to(room).emit("namePlates:updated", data);
+    });
+
+    socket.on("decklist:set", (data) => {
+      rooms.setDecklistOverlay(room, data);
+      socket.to(room).emit("decklist:updated", data);
     });
 
     // ── TopDeck Config (producer shares with room) ──

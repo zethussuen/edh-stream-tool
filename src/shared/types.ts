@@ -187,6 +187,27 @@ export interface TopDeckPlayer {
   > | null;
 }
 
+// ── Decklist Overlay ──
+
+export interface DecklistOverlayCard {
+  name: string;
+  manaCost: string;
+  quantity: number;
+}
+
+export interface DecklistOverlaySection {
+  name: string;
+  cards: DecklistOverlayCard[];
+}
+
+export interface DecklistOverlayData {
+  playerName: string;
+  commanderName: string | null;
+  sections: DecklistOverlaySection[];
+}
+
+// ── Name Plates ──
+
 export interface NamePlate {
   name: string;
   deckName: string | null;

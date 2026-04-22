@@ -1,6 +1,6 @@
 {
   "name": "cedh-stream-tool",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Real-time stream overlay tool for casting cEDH tournaments",
   "author": "eldrazi.dev",
   "private": true,

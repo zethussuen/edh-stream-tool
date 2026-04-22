@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import type { ScryfallCard, TopDeckConfig, TopDeckAttendee, TopDeckTable } from "@shared/types";
+import type { ScryfallCard, TopDeckConfig, TopDeckAttendee, TopDeckTable, DecklistOverlayData, DecklistOverlaySection } from "@shared/types";
 import * as topdeck from "@shared/topdeck";
 import * as scryfall from "@shared/scryfall";
 import * as scrollrack from "@shared/scrollrack";
@@ -94,6 +94,25 @@ function sortCards(cards: ScryfallCard[], field: SortField, dir: SortDir): Scryf
     return dir === "desc" ? -cmp : cmp;
   });
   return sorted;
+}
+
+/** Build decklist overlay data from sections, grouped by type and sorted by MV. */
+function buildDecklistOverlay(
+  playerName: string,
+  commanderLabel: string | null,
+  sections: DeckSection[],
+  commanderIds: Set<string>,
+): DecklistOverlayData {
+  const grouped = groupByType(sections, commanderIds);
+  const overlaySections: DecklistOverlaySection[] = grouped.map((section) => ({
+    name: section.name,
+    cards: sortCards(section.cards, "mv", "asc").map((card) => ({
+      name: card.name,
+      manaCost: card.manaCost,
+      quantity: 1,
+    })),
+  }));
+  return { playerName, commanderName: commanderLabel, sections: overlaySections };
 }
 
 /** Extract oracle IDs from a deckObj/validation map and batch-fetch via Scryfall. */
@@ -360,6 +379,20 @@ export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, 
 
         {!deckLoading && sections.length > 0 && (
           <>
+            <button
+              onClick={() => {
+                const overlayData = buildDecklistOverlay(
+                  selectedPlayer.name,
+                  getCommanderLabel(selectedPlayer.deckObj),
+                  sections,
+                  commanderIds,
+                );
+                emit("decklist:set", overlayData);
+              }}
+              className="h-7 w-full rounded bg-gold/20 text-xs text-gold hover:bg-gold/30 transition-colors font-medium"
+            >
+              Show Decklist on Overlay
+            </button>
             <input
               type="text"
               value={filter}
