@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { TopDeckConfig, TopDeckTable, NamePlate } from "@shared/types";
+import type { TopDeckConfig, TopDeckTable, NamePlate, FocusedCardData, StreamPlayerStats } from "@shared/types";
 import { OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
 import { useRoom, useSocket, getRoom } from "@shared/socket";
 import { useFeedPublisher } from "@shared/feed";
@@ -27,10 +27,12 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hasServerKey, setHasServerKey] = useState(false);
   const [streamTable, setStreamTableLocal] = useState<TopDeckTable | null>(null);
-  const setStreamTable = useCallback((table: TopDeckTable | null, plates: NamePlate[] | null = null) => {
+  const setStreamTable = useCallback((table: TopDeckTable | null, plates: NamePlate[] | null = null, round?: number | string, tournamentName?: string, stats?: StreamPlayerStats[] | null) => {
     setStreamTableLocal(table);
     emit("streamTable:set", table);
     emit("namePlates:set", plates);
+    emit("streamRound:set", round != null && tournamentName != null ? { round, tournamentName } : null);
+    emit("streamStats:set", stats ?? null);
   }, [emit]);
 
   useEffect(() => {
@@ -39,6 +41,15 @@ export function App() {
     const handler = (table: TopDeckTable | null) => setStreamTableLocal(table);
     s.on("streamTable:updated", handler);
     return () => { s.off("streamTable:updated", handler); };
+  }, [socket]);
+
+  const [focusedCard, setFocusedCard] = useState<FocusedCardData | null>(null);
+  useEffect(() => {
+    const s = socket.current;
+    if (!s) return;
+    const handler = (data: FocusedCardData | null) => setFocusedCard(data);
+    s.on("focusedCard:updated", handler);
+    return () => { s.off("focusedCard:updated", handler); };
   }, [socket]);
   const room = getRoom();
   const [topDeckConfig, setTopDeckConfigLocal] = useState<TopDeckConfig | null>(
@@ -256,6 +267,7 @@ export function App() {
         <BottomStrip
           cards={state.cards}
           spotlight={state.spotlight}
+          focusedCard={focusedCard}
           emit={emit}
         />
       </div>
@@ -271,3 +283,5 @@ export function App() {
     </div>
   );
 }
+
+

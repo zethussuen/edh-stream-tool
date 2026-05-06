@@ -187,11 +187,19 @@ export interface TopDeckPlayer {
   > | null;
 }
 
+// ── Focused Card ──
+
+export interface FocusedCardData {
+  name: string;
+  imageUriLarge: string;
+}
+
 // ── Decklist Overlay ──
 
 export interface DecklistOverlayCard {
   name: string;
   manaCost: string;
+  cmc: number;
   quantity: number;
 }
 
@@ -204,6 +212,15 @@ export interface DecklistOverlayData {
   playerName: string;
   commanderName: string | null;
   sections: DecklistOverlaySection[];
+}
+
+// ── Stream Player Stats ──
+
+export interface StreamPlayerStats {
+  standing: number | null;
+  wins: number;
+  losses: number;
+  draws: number;
 }
 
 // ── Name Plates ──

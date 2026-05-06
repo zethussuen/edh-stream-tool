@@ -4,16 +4,57 @@ import { Server } from "socket.io";
 import cors from "cors";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import fs from "node:fs/promises";
 import { RoomManager } from "./room.js";
+import type { NamePlate } from "../src/shared/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+const SAFE_PARAM = /^[a-zA-Z0-9_-]+$/;
+
+function sanitizeRoom(room: string): string {
+  if (!SAFE_PARAM.test(room)) return "default";
+  return room;
+}
 
 export interface ServerInstance {
   httpServer: HttpServer;
   port: number;
 }
 
-export function startServer(distDir?: string): Promise<ServerInstance> {
+async function writeObsFiles(room: string, rooms: RoomManager, obsDir: string) {
+  try {
+    const safeRoom = sanitizeRoom(room);
+    const dir = safeRoom === "default" ? obsDir : join(obsDir, safeRoom);
+    await fs.mkdir(dir, { recursive: true });
+    const table = rooms.getStreamTable(room);
+    const plates = rooms.getNamePlates(room);
+    const rnd = rooms.getStreamRound(room);
+    const stats = rooms.getStreamStats(room);
+    const writes: Promise<void>[] = [
+      fs.writeFile(join(dir, "tournament_name.txt"), rnd?.tournamentName ?? "", "utf8"),
+      fs.writeFile(join(dir, "round.txt"), rnd?.round != null ? String(rnd.round) : "", "utf8"),
+      fs.writeFile(join(dir, "table.txt"), table?.table != null ? String(table.table) : "", "utf8"),
+      fs.writeFile(join(dir, "match_status.txt"), table?.status ?? "", "utf8"),
+    ];
+    for (let i = 0; i < 4; i++) {
+      const p: NamePlate | undefined = plates?.[i];
+      const s = stats?.[i];
+      const prefix = join(dir, `player${i + 1}`);
+      writes.push(
+        fs.writeFile(`${prefix}_name.txt`, p?.name ?? "", "utf8"),
+        fs.writeFile(`${prefix}_commander.txt`, p?.deckName ?? "", "utf8"),
+        fs.writeFile(`${prefix}_standing.txt`, s?.standing != null ? String(s.standing) : "", "utf8"),
+        fs.writeFile(`${prefix}_record.txt`, s ? `${s.wins}-${s.losses}-${s.draws}` : "", "utf8"),
+      );
+    }
+    await Promise.all(writes);
+  } catch (err) {
+    console.error("[obs] Failed to write obs files:", err);
+  }
+}
+
+export function startServer(distDir?: string, obsDir?: string): Promise<ServerInstance> {
   const app = express();
   app.use(cors());
   app.use(express.json());
@@ -37,6 +78,12 @@ export function startServer(distDir?: string): Promise<ServerInstance> {
         if (!apiKey) {
           res.status(400).json({ error: "No TopDeck API key provided" });
           return;
+        }
+        for (const param of ["tid", "playerId"]) {
+          if (req.body[param] && !SAFE_PARAM.test(req.body[param])) {
+            res.status(400).json({ error: `Invalid ${param}` });
+            return;
+          }
         }
         const r = await fetch(buildUrl(req.body), {
           headers: { Authorization: apiKey },
@@ -71,7 +118,7 @@ export function startServer(distDir?: string): Promise<ServerInstance> {
 
     app.get("/", (_req, res) => res.redirect("/caster"));
 
-    for (const page of ["caster", "control", "overlay", "spotlight", "nameplates", "annotations", "decklist"]) {
+    for (const page of ["caster", "control", "overlay", "spotlight", "nameplates", "annotations", "decklist", "focused-card"]) {
       const sendPage = (_req: express.Request, res: express.Response) => {
         res.sendFile(join(distDir, "src", page, "index.html"));
       };
@@ -106,6 +153,22 @@ export function startServer(distDir?: string): Promise<ServerInstance> {
     const decklistOverlay = rooms.getDecklistOverlay(room);
     if (decklistOverlay) {
       socket.emit("decklist:updated", decklistOverlay);
+    }
+    const focusedCard = rooms.getFocusedCard(room);
+    if (focusedCard) {
+      socket.emit("focusedCard:updated", focusedCard);
+    }
+    const feedProducerId = rooms.getFeedProducer(room);
+    if (feedProducerId) {
+      socket.emit("feed:available", { producerId: feedProducerId });
+    }
+    const streamRound = rooms.getStreamRound(room);
+    if (streamRound) {
+      socket.emit("streamRound:updated", streamRound);
+    }
+    const streamStats = rooms.getStreamStats(room);
+    if (streamStats) {
+      socket.emit("streamStats:updated", streamStats);
     }
 
     // ── Card lifecycle ──
@@ -168,16 +231,40 @@ export function startServer(distDir?: string): Promise<ServerInstance> {
     socket.on("streamTable:set", (data) => {
       rooms.setStreamTable(room, data);
       socket.to(room).emit("streamTable:updated", data);
+      if (obsDir) writeObsFiles(room, rooms, obsDir);
     });
 
     socket.on("namePlates:set", (data) => {
       rooms.setNamePlates(room, data);
       socket.to(room).emit("namePlates:updated", data);
+      if (obsDir) writeObsFiles(room, rooms, obsDir);
+    });
+
+    socket.on("streamRound:set", (data) => {
+      rooms.setStreamRound(room, data);
+      socket.to(room).emit("streamRound:updated", data);
+      if (obsDir) writeObsFiles(room, rooms, obsDir);
+    });
+
+    socket.on("streamStats:set", (data) => {
+      rooms.setStreamStats(room, data);
+      socket.to(room).emit("streamStats:updated", data);
+      if (obsDir) writeObsFiles(room, rooms, obsDir);
     });
 
     socket.on("decklist:set", (data) => {
       rooms.setDecklistOverlay(room, data);
       socket.to(room).emit("decklist:updated", data);
+    });
+
+    socket.on("focusedCard:set", (data) => {
+      rooms.setFocusedCard(room, data);
+      socket.to(room).emit("focusedCard:updated", data);
+    });
+
+    socket.on("focusedCard:clear", () => {
+      rooms.setFocusedCard(room, null);
+      socket.to(room).emit("focusedCard:updated", null);
     });
 
     // ── TopDeck Config (producer shares with room) ──
@@ -215,10 +302,12 @@ export function startServer(distDir?: string): Promise<ServerInstance> {
     // ── Video Feed (WebRTC signaling) ──
 
     socket.on("feed:available", () => {
+      rooms.setFeedProducer(room, socket.id);
       socket.to(room).emit("feed:available", { producerId: socket.id });
     });
 
     socket.on("feed:stopped", () => {
+      rooms.clearFeedProducerIfMatch(room, socket.id);
       socket.to(room).emit("feed:stopped");
     });
 
@@ -247,6 +336,9 @@ export function startServer(distDir?: string): Promise<ServerInstance> {
 
     socket.on("disconnect", () => {
       console.log(`[${room}] ${role} disconnected (${socket.id})`);
+      if (rooms.clearFeedProducerIfMatch(room, socket.id)) {
+        io.to(room).emit("feed:stopped");
+      }
     });
   });
 
@@ -266,5 +358,6 @@ const isMain = process.argv[1]?.includes("server");
 if (isMain) {
   const isProduction = process.env.NODE_ENV === "production";
   const distDir = isProduction ? join(__dirname, "..", "dist") : undefined;
-  startServer(distDir);
+  const obsDir = join(process.cwd(), "obs-files");
+  startServer(distDir, obsDir);
 }

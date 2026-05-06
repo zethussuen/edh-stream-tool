@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { TopDeckConfig, TopDeckStanding, TopDeckRound, TopDeckTable, TopDeckAttendee, NamePlate } from "@shared/types";
+import type { TopDeckConfig, TopDeckStanding, TopDeckRound, TopDeckTable, TopDeckAttendee, NamePlate, StreamPlayerStats } from "@shared/types";
 import * as topdeck from "@shared/topdeck";
 import * as scryfall from "@shared/scryfall";
 import { getCommanderLabel } from "@shared/cards";
@@ -8,7 +8,7 @@ interface Props {
   config: TopDeckConfig | null;
   hasServerKey?: boolean;
   streamTable: TopDeckTable | null;
-  onSetStreamTable: (table: TopDeckTable | null, plates: NamePlate[] | null) => void;
+  onSetStreamTable: (table: TopDeckTable | null, plates: NamePlate[] | null, round?: number | string, tournamentName?: string, stats?: StreamPlayerStats[] | null) => void;
   onSelectPlayer: (playerId: string) => void;
 }
 
@@ -206,8 +206,21 @@ export function TournamentPanel({ config, hasServerKey, streamTable, onSetStream
                         if (isStream) {
                           onSetStreamTable(null, null);
                         } else {
-                          const plates = await buildNamePlates(table);
-                          onSetStreamTable(table, plates);
+                          try {
+                            const plates = await buildNamePlates(table);
+                            const stats: StreamPlayerStats[] = table.players.map((p) => {
+                              const s = standings.find((st) => st.id === p.id || st.name === p.name);
+                              return {
+                                standing: s?.standing ?? null,
+                                wins: s?.wins ?? 0,
+                                losses: s?.losses ?? 0,
+                                draws: s?.draws ?? 0,
+                              };
+                            });
+                            onSetStreamTable(table, plates, currentRound?.round, tournamentName, stats);
+                          } catch (e) {
+                            setError(e instanceof Error ? e.message : "Failed to set stream pod");
+                          }
                         }
                       }}
                       className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { useSocket } from "@shared/socket";
-import { OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
 import type { DecklistOverlayData } from "@shared/types";
+import { OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
+import { useSocket } from "@shared/socket";
 import { DecklistOverlay } from "../overlay/components/DecklistOverlay";
 
 export function App() {

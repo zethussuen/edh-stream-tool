@@ -70,6 +70,10 @@ function getLanIp(): string {
   return "localhost";
 }
 
+// ── OBS output directory ──
+
+const obsDir = join(app.getPath("documents"), "cEDH Stream Tool");
+
 // ── Native menu ──
 
 function buildMenu(baseUrl: string) {
@@ -151,6 +155,13 @@ function buildMenu(baseUrl: string) {
             }
           },
         },
+        { type: "separator" },
+        {
+          label: "Reveal OBS Files",
+          click: () => {
+            shell.openPath(obsDir);
+          },
+        },
       ],
     },
   ];
@@ -162,7 +173,7 @@ function buildMenu(baseUrl: string) {
 
 async function createWindow() {
   const distDir = join(app.getAppPath(), "dist");
-  server = await startServer(distDir);
+  server = await startServer(distDir, obsDir);
 
   const lanIp = getLanIp();
   const baseUrl = `http://${lanIp}:${server.port}`;
@@ -206,6 +217,8 @@ async function createWindow() {
         urlSpan('Spotlight:', '${overlayBase}/spotlight/'),
         urlSpan('Player names:', '${overlayBase}/nameplates/'),
         urlSpan('Cards + Drawings:', '${overlayBase}/annotations/'),
+        urlSpan('Decklist:', '${overlayBase}/decklist/'),
+        urlSpan('Focused Card:', '${overlayBase}/focused-card/'),
       ].join('<span style="user-select:none;color:rgba(0,0,0,0.3);margin:0 6px;">|</span>');
 
       document.body.prepend(banner);

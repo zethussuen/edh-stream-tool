@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as scryfall from "@shared/scryfall";
 import type { ScryfallCard } from "@shared/types";
-import { cardAddPayload, spotlightPayload, cardDragStart } from "@shared/cards";
+import { cardAddPayload, spotlightPayload, focusedCardPayload, cardDragStart } from "@shared/cards";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { PlusSignCircleIcon, SpotlightIcon } from "@hugeicons/core-free-icons";
+import { PlusSignCircleIcon, SpotlightIcon, Image01Icon } from "@hugeicons/core-free-icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@shared/components/ui/tooltip";
 import { ManaCost } from "@shared/components/ManaCost";
 
@@ -18,7 +18,7 @@ export function SearchPanel({ emit, searchInputRef }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const cache = useRef(new Map<string, ScryfallCard[]>());
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -61,6 +61,11 @@ export function SearchPanel({ emit, searchInputRef }: Props) {
 
   const spotlight = useCallback(
     (card: ScryfallCard) => emit("spotlight:show", spotlightPayload(card)),
+    [emit],
+  );
+
+  const focusCard = useCallback(
+    (card: ScryfallCard) => emit("focusedCard:set", focusedCardPayload(card)),
     [emit],
   );
 
@@ -116,6 +121,17 @@ export function SearchPanel({ emit, searchInputRef }: Props) {
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="left" sideOffset={6}>Add to overlay</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => focusCard(card)}
+                    className="h-9 w-9 flex items-center justify-center rounded bg-bg-surface text-text-dim hover:bg-gold hover:text-bg-base transition-colors"
+                  >
+                    <HugeiconsIcon icon={Image01Icon} size={20} color="currentColor" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="left" sideOffset={6}>Focus card</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>

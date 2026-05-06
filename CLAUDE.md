@@ -8,7 +8,7 @@ A real-time, multi-operator stream overlay tool for casting competitive EDH (cED
 
 - **Casters (2)**: At the stream table with their own laptops. Open `/caster` in a browser. They search for cards, place/move them on the overlay, draw annotations, and trigger spotlight mode. They watch the game and commentate — the tool needs to be fast and low-friction.
 - **Producer (1)**: At the streaming PC running OBS with a Stream Deck. Opens `/control` in a browser for overlay management (clear cards, reposition, override anything casters do). Has final authority over what's on screen.
-- **OBS Overlay**: The producer's OBS loads overlay browser sources (1920×1080, transparent) layered over the game camera feed. Available as a single combined source (`/overlay`) or individual layers (`/spotlight`, `/nameplates`, `/annotations`, `/decklist`) for independent z-ordering and visibility control in OBS.
+- **OBS Overlay**: The producer's OBS loads overlay browser sources (1920×1080, transparent) layered over the game camera feed. Available as a single combined source (`/overlay`) or individual layers (`/spotlight`, `/nameplates`, `/annotations`, `/decklist`) for independent z-ordering and visibility control in OBS. `/focused-card` is a 672×936 insert source for single-card display.
 
 ## Tech Stack
 
@@ -52,7 +52,7 @@ cedh-stream-tool/
 │   └── main.ts                     # Electron entry (starts embedded server, loads /control)
 ├── server/
 │   ├── index.ts                    # Express + Socket.IO server entry + TopDeck proxy
-│   └── room.ts                     # Room state (cards, spotlight, stream table, name plates)
+│   └── room.ts                     # Room state (cards, spotlight, stream table, name plates, focused card, feed producer)
 ├── src/
 │   ├── env.d.ts                    # Global type declarations (__APP_VERSION__)
 │   ├── shared/
@@ -60,7 +60,7 @@ cedh-stream-tool/
 │   │   ├── scryfall.ts             # Scryfall API client (search, batch collection by oracle ID)
 │   │   ├── scrollrack.ts           # Scrollrack API client
 │   │   ├── topdeck.ts              # TopDeck.gg API client with localStorage cache
-│   │   ├── cards.ts                # Card payload builders, commander label helper
+│   │   ├── cards.ts                # Card payload builders (cardAddPayload, spotlightPayload, focusedCardPayload), commander label helper
 │   │   ├── card-filter.ts          # Client-side Scryfall-syntax query parser & evaluator
 │   │   ├── socket.ts               # Socket.IO connection factory + hooks
 │   │   ├── constants.ts            # Overlay dimensions, fade timings, etc.
@@ -107,7 +107,11 @@ cedh-stream-tool/
 │   │   ├── index.html
 │   │   ├── main.tsx
 │   │   └── App.tsx
-│   └── decklist/                   # Standalone decklist overlay (/decklist, stub)
+│   ├── decklist/                   # Standalone decklist overlay (/decklist)
+│   │   ├── index.html
+│   │   ├── main.tsx
+│   │   └── App.tsx
+│   └── focused-card/               # Standalone 672×936 card insert overlay (/focused-card)
 │       ├── index.html
 │       ├── main.tsx
 │       └── App.tsx
@@ -118,9 +122,9 @@ cedh-stream-tool/
 └── release/                        # electron-builder output (gitignored)
 ```
 
-This is a **multi-page Vite app**. Each route (`/caster`, `/control`, `/overlay`, `/spotlight`, `/nameplates`, `/annotations`, `/decklist`) is a separate entry point with its own `index.html` and React root. Configure via `build.rollupOptions.input` in `vite.config.ts`. They share code from `src/shared/` and `src/components/ui/`.
+This is a **multi-page Vite app**. Each route (`/caster`, `/control`, `/overlay`, `/spotlight`, `/nameplates`, `/annotations`, `/decklist`, `/focused-card`) is a separate entry point with its own `index.html` and React root. Configure via `build.rollupOptions.input` in `vite.config.ts`. They share code from `src/shared/` and `src/components/ui/`.
 
-The overlay is available as a single combined source (`/overlay`) or as individual layers (`/spotlight`, `/nameplates`, `/annotations`, `/decklist`) for finer OBS control. The standalone overlays import components from `src/overlay/components/` — those remain the single source of truth for overlay rendering.
+The overlay is available as a single combined source (`/overlay`) or as individual layers (`/spotlight`, `/nameplates`, `/annotations`, `/decklist`) for finer OBS control. `/focused-card` is a 672×936 insert (not 1920×1080) used as a card graphic source. The standalone overlays import components from `src/overlay/components/` — those remain the single source of truth for overlay rendering.
 
 ## Shared Types (`src/shared/types.ts`)
 
@@ -207,6 +211,29 @@ export interface ScrollrackValidation {
   cardsPerSection?: Record<string, number>
   totalCards?: number
 }
+
+export interface FocusedCardData {
+  name: string
+  imageUriLarge: string        // 672×936 Scryfall large image
+}
+
+export interface DecklistOverlayCard {
+  name: string
+  manaCost: string
+  cmc: number
+  quantity: number
+}
+
+export interface DecklistOverlaySection {
+  name: string
+  cards: DecklistOverlayCard[]
+}
+
+export interface DecklistOverlayData {
+  playerName: string
+  commanderName: string | null
+  sections: DecklistOverlaySection[]
+}
 ```
 
 ## Socket.IO Event Protocol
@@ -239,13 +266,24 @@ export interface ScrollrackValidation {
 | `streamTable:set` | `streamTable:updated` | `TopDeckTable \| null` |
 | `namePlates:set` | `namePlates:updated` | `NamePlate[] \| null` |
 
+### Decklist Overlay
+| Client → Server | Server → All | Payload |
+|---|---|---|
+| `decklist:set` | `decklist:updated` | `DecklistOverlayData \| null` |
+
+### Focused Card
+| Client → Server | Server → All | Payload |
+|---|---|---|
+| `focusedCard:set` | `focusedCard:updated` | `FocusedCardData` |
+| `focusedCard:clear` | `focusedCard:updated` (null) | (none) |
+
 ### Bulk
 | Client → Server | Server → All | Payload |
 |---|---|---|
 | `cards:clearAll` | `state:full` (empty state) | (none) |
 
 ### On Connect
-Server sends `state:full` with current `RoomState`, plus `streamTable:updated` and `namePlates:updated` if set.
+Server sends `state:full` with current `RoomState`, plus `streamTable:updated`, `namePlates:updated`, `decklist:updated`, and `focusedCard:updated` if set. Also sends `feed:available` with the active producer's socket ID if a video feed is live.
 
 Connection query params: `{ room: string, role: 'caster' | 'control' | 'overlay' }`.
 
@@ -263,13 +301,14 @@ The server assigns auto-incrementing card IDs (`card-${nextCardId++}` per room) 
 
 Routes in production:
 - `GET /` → redirect to `/caster`
-- `GET /caster/*` → `dist/caster/index.html`
-- `GET /control/*` → `dist/control/index.html`
-- `GET /overlay/*` → `dist/overlay/index.html`
-- `GET /spotlight/*` → `dist/spotlight/index.html`
-- `GET /nameplates/*` → `dist/nameplates/index.html`
-- `GET /annotations/*` → `dist/annotations/index.html`
-- `GET /decklist/*` → `dist/decklist/index.html`
+- `GET /caster/*` → `dist/src/caster/index.html`
+- `GET /control/*` → `dist/src/control/index.html`
+- `GET /overlay/*` → `dist/src/overlay/index.html`
+- `GET /spotlight/*` → `dist/src/spotlight/index.html`
+- `GET /nameplates/*` → `dist/src/nameplates/index.html`
+- `GET /annotations/*` → `dist/src/annotations/index.html`
+- `GET /decklist/*` → `dist/src/decklist/index.html`
+- `GET /focused-card/*` → `dist/src/focused-card/index.html`
 - `POST /api/topdeck/*` → proxy to TopDeck.gg API (see TopDeck.gg section below)
 
 In development, Vite+ dev server handles the frontend and the Express server runs alongside (use `concurrently`).
@@ -443,9 +482,13 @@ For advanced OBS setups, each layer is available as a separate browser source. T
 | `/spotlight` | Spotlight | Full-screen card spotlight only |
 | `/nameplates` | Name Plates | 4-corner player name plates only |
 | `/annotations` | Annotations | Cards on canvas + drawing annotations (no spotlight, no name plates) |
-| `/decklist` | Decklist | Decklist overlay (stub — feature in progress) |
+| `/decklist` | Decklist | Full-screen player decklist: name, commander, cards in 3 columns with mana symbols |
 
 All standalone overlays connect with role `"overlay"` and share the same room state. They import components from `src/overlay/components/`.
+
+### Focused Card Overlay (`/focused-card`)
+
+A 672×936 insert (not 1920×1080) used as a separate OBS Browser Source for a clean single-card graphic. Listens to `focusedCard:updated` and shows the card image with a subtle fade-scale enter/exit animation (0.3s). Has no UI chrome. Casters trigger it via the picture-frame icon in SearchPanel or DecklistPanel; cleared via the icon in BottomStrip. Server persists the focused card so newly connecting clients get the current state.
 
 ### Overlay Component Details
 
@@ -453,6 +496,7 @@ All standalone overlays connect with role `"overlay"` and share the same room st
 - **Spotlight mode**: Full-screen dark radial-gradient backdrop at `z-index: 9000`. Card image at 480×670 with pulsing gold glow shadow. Card name (Bebas Neue, 56px, gold), mana cost rendered as SVG symbols, type line, artist credit.
 - **Drawing layer**: Same render loop as caster — receives `draw:stroke` events via Socket.IO, renders with identical auto-fade timing (6s delay, 2s fade).
 - **Name plates**: When a stream pod is set, 4 player name plates render in the corners (TL=seat 1, TR=seat 2, BR=seat 3, BL=seat 4 clockwise). Each shows player name (Bebas Neue, 28px), commander name + color identity mana symbols. Plates hug corners with no margin, inner corner rounded. Near-opaque dark backdrop.
+- **Decklist overlay**: Full 1920×1080, near-opaque dark gradient backdrop. Player name (Bebas Neue, 36px), commander name (gold, 16px), then 99 cards grouped in 3 CSS columns with `columnFill: "auto"`. Each card row shows quantity, name, and inline mana cost SVGs. Triggered by "Show Decklist on Overlay" button in DecklistPanel; cleared by sending `decklist:set` with null (no dedicated clear button yet).
 
 ## Design System
 
@@ -519,7 +563,7 @@ App version is defined in `package.json` `"version"` and injected at build time 
 
 ## Vite Config Notes
 
-- Multi-page app: configure `build.rollupOptions.input` with three entries (caster, control, overlay)
+- Multi-page app: configure `build.rollupOptions.input` with all entries (caster, control, overlay, spotlight, nameplates, annotations, decklist, focused-card)
 - Each entry has its own `index.html` in `src/caster/`, `src/control/`, `src/overlay/`
 - Shared code in `src/shared/` and `src/components/` is tree-shaken per entry
 - The overlay bundle should be kept as small as possible — it runs in OBS's embedded Chromium
@@ -681,59 +725,40 @@ export interface TopDeckPlayer {
 
 ## Live Video Feed (Producer → Caster)
 
-The caster app's preview canvas currently shows a checkerboard placeholder. The goal is to replace this with a live video feed of the OBS output so casters can see exactly what the stream looks like while they place cards and draw annotations.
+Implemented via browser WebRTC using OBS Virtual Camera — no extra infrastructure needed.
 
 ### Architecture
 
 ```
-Producer's OBS → Virtual Camera / NDI → MediaMTX or LiveKit → WebRTC → Caster App <video>
+OBS Virtual Camera → Producer's browser (getUserMedia) → Socket.IO WebRTC signaling → Caster browsers
 ```
 
-The preview canvas already has a `<video id="preview-feed">` element with `display: none`. When a feed URL is provided, set `display: block` on the video element and hide the checkerboard background.
+### Flow
 
-### Implementation Options (choose one)
+1. Producer starts OBS Virtual Camera
+2. In `/control/`, clicks **Start Camera** in the toolbar — browser calls `getUserMedia({ video: true })` and the user picks "OBS Virtual Camera" from the device picker
+3. Producer sends `feed:available` to the server; server stores the producer's socket ID in room state and broadcasts `feed:available { producerId }` to all room members
+4. Caster apps receive `feed:available`, initiate a WebRTC peer connection to the producer's socket ID via Socket.IO signaling (`feed:offer`, `feed:answer`, `feed:ice` events)
+5. Video track attaches to a `<video>` element behind the canvas layers, replacing the checkerboard background
+6. On disconnect, server detects the producer socket left and broadcasts `feed:stopped`; casters fall back to checkerboard
 
-**Option A: LiveKit (recommended)**
-- Producer runs a LiveKit room (self-hosted or LiveKit Cloud)
-- Producer publishes their OBS output as a video track (via OBS Virtual Camera → LiveKit SDK, or OBS → WHIP output → LiveKit)
-- Caster app joins the LiveKit room as a subscriber, receives the video track, attaches it to the `<video>` element
-- Latency: ~200-500ms (WebRTC)
-- Pros: already familiar from SpellTable work, scales to many viewers, good SDK
-- Cons: requires LiveKit server infrastructure
+### State Persistence
 
-**Option B: Simple WHEP/WHIP**
-- Producer runs a lightweight media relay (e.g., `mediamtx`) on the streaming PC
-- OBS publishes via WHIP (OBS 30+ supports this natively)
-- Caster app consumes the stream via WHEP (standard WebRTC playback)
-- Latency: ~200-500ms
-- Pros: simpler infrastructure, no account needed
-- Cons: more manual setup for the producer
+The active feed producer's socket ID is stored in `RoomData.feedProducerId`. Clients connecting after the producer started the feed receive `feed:available` immediately on the `state:full` / connect sequence and can initiate the WebRTC handshake.
 
-**Option C: RTMP → HLS fallback**
-- Producer sends a secondary RTMP stream to a local nginx-rtmp or mediamtx instance
-- Relay serves it as HLS
-- Caster app plays HLS via `hls.js` in the `<video>` element
-- Latency: 3-10 seconds (acceptable for card placement, not ideal for real-time annotation)
-- Pros: simplest setup, battle-tested
-- Cons: high latency degrades the annotation experience
+### Latency
 
-### Settings UI
+~200-500ms (WebRTC P2P). Good enough for card placement and annotation alignment.
 
-Add a "Video Feed" section to the Settings tab/modal:
-- **Feed URL** input — the WebRTC/WHEP/HLS endpoint URL
-- **Connect / Disconnect** toggle
-- Feed status indicator (connecting, connected, disconnected, error)
+## Implemented Features (v0.1.7)
 
-### Caster App Changes
-
-- When feed is connected, show the `<video>` element as the canvas background
-- Drawing and card layers remain on top of the video
-- If feed disconnects, fall back to checkerboard with a reconnect indicator
-
-## Implemented Features (v0.1.3)
-
+- **Focused card overlay** (`/focused-card`) — Standalone 672×936 browser source for a clean single-card graphic insert. Triggered from search results or decklist via the picture-frame icon. Persisted in server state; cleared from BottomStrip.
+- **Feed producer persistence** — WebRTC feed producer socket ID stored in room state so late-joining clients get `feed:available` immediately and can initiate the WebRTC handshake.
+- **Decklist overlay** (`/decklist`) — Full-screen text-based decklist: player name, commander, 99 cards in 3 CSS columns with mana symbol SVGs. Pushed from DecklistPanel's "Show Decklist on Overlay" button.
+- **Moxfield-style text view** — Decklist grouped by card type with mana cost display (v0.1.6).
 - **Standalone overlay layers** — Overlay split into independent browser sources (`/spotlight`, `/nameplates`, `/annotations`, `/decklist`) for granular OBS control. Combined `/overlay` still available.
 - **Player name plates** — 4-corner overlay name plates with player name, commander name, and color identity mana symbols. Synced via Socket.IO when stream pod is selected.
+- **Live video feed** — Producer captures OBS Virtual Camera via browser `getUserMedia`, streams to casters via WebRTC using Socket.IO signaling. No external infrastructure.
 - **Annotation fade toggle** — Toolbar button to toggle auto-fade on/off. When off, drawings persist until manually cleared.
 - **Electron packaging** — esbuild bundles electron/server into single JS file, electron-builder produces macOS arm64 (.dmg/.zip) and Windows x64 (.exe/.zip) distributables.
 - **Tournament-driven decklists** — Deck tab fetches from TopDeck.gg `/attendees` endpoint (staff access). Scryfall-syntax card filter with `t:`, `o:`, `c:`, `mv<=`, negation, OR/parentheses.

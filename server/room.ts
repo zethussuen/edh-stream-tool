@@ -1,4 +1,4 @@
-import type { OverlayCard, RoomState, SpotlightData, TopDeckTable, NamePlate, DecklistOverlayData } from "../src/shared/types.js";
+import type { OverlayCard, RoomState, SpotlightData, TopDeckTable, NamePlate, DecklistOverlayData, FocusedCardData, StreamPlayerStats } from "../src/shared/types.js";
 import { OVERLAY_WIDTH, OVERLAY_HEIGHT } from "../src/shared/constants.js";
 
 interface TopDeckRoomConfig {
@@ -13,6 +13,10 @@ interface RoomData {
   namePlates: NamePlate[] | null;
   topDeckConfig: TopDeckRoomConfig | null;
   decklistOverlay: DecklistOverlayData | null;
+  focusedCard: FocusedCardData | null;
+  feedProducerId: string | null;
+  streamRound: { round: number | string; tournamentName: string } | null;
+  streamStats: StreamPlayerStats[] | null;
 }
 
 export class RoomManager {
@@ -66,8 +70,9 @@ export class RoomManager {
     if (!rd) return false;
     const idx = rd.state.cards.findIndex((c) => c.id === id);
     if (idx === -1) return false;
+    const removed = rd.state.cards[idx];
     rd.state.cards.splice(idx, 1);
-    if (rd.state.spotlight === id) {
+    if (rd.state.spotlight?.name === removed.name) {
       rd.state.spotlight = null;
     }
     return true;
@@ -156,6 +161,47 @@ export class RoomManager {
     return this.rooms.get(room)?.decklistOverlay ?? null;
   }
 
+  setFeedProducer(room: string, socketId: string | null): void {
+    this.getRoomData(room).feedProducerId = socketId;
+  }
+
+  getFeedProducer(room: string): string | null {
+    return this.rooms.get(room)?.feedProducerId ?? null;
+  }
+
+  clearFeedProducerIfMatch(room: string, socketId: string): boolean {
+    const rd = this.rooms.get(room);
+    if (rd && rd.feedProducerId === socketId) {
+      rd.feedProducerId = null;
+      return true;
+    }
+    return false;
+  }
+
+  setFocusedCard(room: string, data: FocusedCardData | null): void {
+    this.getRoomData(room).focusedCard = data;
+  }
+
+  getFocusedCard(room: string): FocusedCardData | null {
+    return this.rooms.get(room)?.focusedCard ?? null;
+  }
+
+  setStreamRound(room: string, data: { round: number | string; tournamentName: string } | null): void {
+    this.getRoomData(room).streamRound = data;
+  }
+
+  getStreamRound(room: string): { round: number | string; tournamentName: string } | null {
+    return this.rooms.get(room)?.streamRound ?? null;
+  }
+
+  setStreamStats(room: string, data: StreamPlayerStats[] | null): void {
+    this.getRoomData(room).streamStats = data;
+  }
+
+  getStreamStats(room: string): StreamPlayerStats[] | null {
+    return this.rooms.get(room)?.streamStats ?? null;
+  }
+
   clearAll(room: string): RoomState {
     const rd = this.getRoomData(room);
     rd.state.cards = [];
@@ -177,6 +223,10 @@ export class RoomManager {
         namePlates: null,
         topDeckConfig: null,
         decklistOverlay: null,
+        focusedCard: null,
+        feedProducerId: null,
+        streamRound: null,
+        streamStats: null,
       };
       this.rooms.set(room, rd);
     }

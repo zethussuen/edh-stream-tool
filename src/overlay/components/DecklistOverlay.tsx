@@ -42,7 +42,7 @@ function SectionBlock({ section }: { section: DecklistOverlaySection }) {
 
       {/* Card list */}
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {section.cards.map((card, i) => (
+        {[...section.cards].sort((a, b) => a.cmc - b.cmc || a.name.localeCompare(b.name)).map((card, i) => (
           <div
             key={`${card.name}-${i}`}
             style={{
@@ -55,16 +55,6 @@ function SectionBlock({ section }: { section: DecklistOverlaySection }) {
               lineHeight: 1.4,
             }}
           >
-            <span
-              style={{
-                color: "rgba(228, 224, 216, 0.5)",
-                width: 16,
-                textAlign: "right",
-                flexShrink: 0,
-              }}
-            >
-              {card.quantity}
-            </span>
             <span
               style={{
                 color: "#e4e0d8",

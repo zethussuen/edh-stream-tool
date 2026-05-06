@@ -7,13 +7,13 @@ const HEADERS = {
   "User-Agent": "cEDHStreamTool/1.0",
 };
 
-let lastRequest = 0;
+let rateLimitQueue: Promise<void> = Promise.resolve();
 
-async function waitForRateLimit() {
-  const now = Date.now();
-  const wait = Math.max(0, SCRYFALL_RATE_LIMIT_MS - (now - lastRequest));
-  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-  lastRequest = Date.now();
+function waitForRateLimit(): Promise<void> {
+  rateLimitQueue = rateLimitQueue.then(
+    () => new Promise((r) => setTimeout(r, SCRYFALL_RATE_LIMIT_MS)),
+  );
+  return rateLimitQueue;
 }
 
 async function throttledFetch(url: string): Promise<Response> {

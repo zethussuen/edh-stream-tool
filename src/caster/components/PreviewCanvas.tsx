@@ -31,7 +31,12 @@ export function PreviewCanvas({ children, socket, connected, previewVideoRef, em
       const raw = e.dataTransfer.getData("application/json");
       if (!raw) return;
 
-      const card: ScryfallCard = JSON.parse(raw);
+      let card: ScryfallCard;
+      try {
+        card = JSON.parse(raw);
+      } catch {
+        return;
+      }
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       const x = Math.round((e.clientX - rect.left) / scale - DEFAULT_CARD_WIDTH / 2);
       const y = Math.round((e.clientY - rect.top) / scale - DEFAULT_CARD_HEIGHT / 2);
@@ -133,23 +138,4 @@ export function PreviewCanvas({ children, socket, connected, previewVideoRef, em
   );
 }
 
-export function useCanvasScale(containerRef: React.RefObject<HTMLDivElement | null>): number {
-  const [scale, setScale] = useState(1);
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const observer = new ResizeObserver((entries) => {
-      const { width, height } = entries[0].contentRect;
-      const sx = width / OVERLAY_WIDTH;
-      const sy = height / OVERLAY_HEIGHT;
-      setScale(Math.min(sx, sy));
-    });
-
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [containerRef]);
-
-  return scale;
-}

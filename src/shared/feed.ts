@@ -21,6 +21,7 @@ export function useFeedPublisher(socket: React.RefObject<Socket | null>, connect
     if (!s || !connected) return;
 
     async function onFeedRequest({ casterId }: { casterId: string }) {
+      if (!s) return;
       const stream = streamRef.current;
       if (!stream) return;
 
@@ -48,7 +49,9 @@ export function useFeedPublisher(socket: React.RefObject<Socket | null>, connect
 
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      s.emit("webrtc:offer", { targetId: casterId, offer: pc.localDescription });
+      if (pc.localDescription) {
+        s.emit("webrtc:offer", { targetId: casterId, offer: pc.localDescription });
+      }
     }
 
     async function onAnswer({ senderId, answer }: { senderId: string; answer: RTCSessionDescriptionInit }) {
@@ -58,7 +61,7 @@ export function useFeedPublisher(socket: React.RefObject<Socket | null>, connect
 
     function onIceCandidate({ senderId, candidate }: { senderId: string; candidate: RTCIceCandidateInit }) {
       const pc = peersRef.current.get(senderId);
-      if (pc) pc.addIceCandidate(candidate);
+      if (pc) pc.addIceCandidate(candidate).catch(() => {});
     }
 
     s.on("feed:request", onFeedRequest);
@@ -131,9 +134,9 @@ export function useFeedReceiver(
     if (!s || !connected) return;
 
     function onFeedAvailable({ producerId }: { producerId: string }) {
+      if (!s) return;
       setFeedAvailable(true);
-      // Request the feed from this producer
-      s!.emit("feed:request", { producerId });
+      s.emit("feed:request", { producerId });
     }
 
     function onFeedStopped() {
@@ -165,8 +168,8 @@ export function useFeedReceiver(
       };
 
       pc.onicecandidate = (e) => {
-        if (e.candidate) {
-          s!.emit("webrtc:ice-candidate", { targetId: senderId, candidate: e.candidate });
+        if (e.candidate && s) {
+          s.emit("webrtc:ice-candidate", { targetId: senderId, candidate: e.candidate });
         }
       };
 
@@ -182,11 +185,13 @@ export function useFeedReceiver(
       await pc.setRemoteDescription(offer);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      s!.emit("webrtc:answer", { targetId: senderId, answer: pc.localDescription });
+      if (s && pc.localDescription) {
+        s.emit("webrtc:answer", { targetId: senderId, answer: pc.localDescription });
+      }
     }
 
     function onIceCandidate({ candidate }: { senderId: string; candidate: RTCIceCandidateInit }) {
-      pcRef.current?.addIceCandidate(candidate);
+      pcRef.current?.addIceCandidate(candidate).catch(() => {});
     }
 
     s.on("feed:available", onFeedAvailable);

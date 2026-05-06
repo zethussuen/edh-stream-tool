@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DrawTool, TopDeckConfig, TopDeckTable, NamePlate } from "@shared/types";
+import type { DrawTool, TopDeckConfig, TopDeckTable, NamePlate, FocusedCardData, StreamPlayerStats } from "@shared/types";
 import { DRAW_COLORS, DRAW_WIDTHS, OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
 import { useRoom, useSocket, getRoom } from "@shared/socket";
 import { Toolbar } from "./components/Toolbar";
@@ -23,11 +23,23 @@ export function App() {
   // Sidebar
   const [activeTab, setActiveTab] = useState("search");
   const [streamTable, setStreamTableLocal] = useState<TopDeckTable | null>(null);
-  const setStreamTable = useCallback((table: TopDeckTable | null, plates: NamePlate[] | null = null) => {
+  const setStreamTable = useCallback((table: TopDeckTable | null, plates: NamePlate[] | null = null, round?: number | string, tournamentName?: string, stats?: StreamPlayerStats[] | null) => {
     setStreamTableLocal(table);
     emit("streamTable:set", table);
     emit("namePlates:set", plates);
+    emit("streamRound:set", round != null && tournamentName != null ? { round, tournamentName } : null);
+    emit("streamStats:set", stats ?? null);
   }, [emit]);
+
+  // Focused card state
+  const [focusedCard, setFocusedCard] = useState<FocusedCardData | null>(null);
+  useEffect(() => {
+    const s = socket.current;
+    if (!s) return;
+    const handler = (data: FocusedCardData | null) => setFocusedCard(data);
+    s.on("focusedCard:updated", handler);
+    return () => { s.off("focusedCard:updated", handler); };
+  }, [socket]);
 
   // Receive stream table changes from other clients
   useEffect(() => {
@@ -233,6 +245,7 @@ export function App() {
         <BottomStrip
           cards={state.cards}
           spotlight={state.spotlight}
+          focusedCard={focusedCard}
           emit={emit}
         />
       </div>

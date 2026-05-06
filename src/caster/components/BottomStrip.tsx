@@ -1,16 +1,17 @@
 import { useCallback } from "react";
-import type { OverlayCard, SpotlightData } from "@shared/types";
+import type { OverlayCard, SpotlightData, FocusedCardData } from "@shared/types";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { SpotlightIcon, LightbulbOffIcon } from "@hugeicons/core-free-icons";
+import { SpotlightIcon, LightbulbOffIcon, Image01Icon } from "@hugeicons/core-free-icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@shared/components/ui/tooltip";
 
 interface Props {
   cards: OverlayCard[];
   spotlight: SpotlightData | null;
+  focusedCard: FocusedCardData | null;
   emit: (event: string, data?: unknown) => void;
 }
 
-export function BottomStrip({ cards, spotlight, emit }: Props) {
+export function BottomStrip({ cards, spotlight, focusedCard, emit }: Props) {
   const clearAll = useCallback(() => {
     if (window.confirm("Clear all cards from overlay?")) {
       emit("cards:clearAll");
@@ -82,6 +83,33 @@ export function BottomStrip({ cards, spotlight, emit }: Props) {
 
       {/* Actions */}
       <div className="flex gap-2 shrink-0">
+        {focusedCard ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => emit("focusedCard:clear")}
+                className="h-9 flex items-center gap-1.5 rounded bg-gold/20 border border-gold/40 px-2.5 text-gold hover:bg-gold/30 transition-colors"
+              >
+                <HugeiconsIcon icon={Image01Icon} size={16} color="currentColor" />
+                <span className="text-xs max-w-[120px] truncate">{focusedCard.name}</span>
+                <span className="text-base leading-none ml-0.5">&times;</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={6}>Clear focused card</TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                disabled
+                className="h-9 w-9 flex items-center justify-center rounded bg-bg-surface text-text-dim disabled:opacity-40 transition-colors"
+              >
+                <HugeiconsIcon icon={Image01Icon} size={20} color="currentColor" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={6}>No focused card</TooltipContent>
+          </Tooltip>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <button

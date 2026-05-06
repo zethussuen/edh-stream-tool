@@ -68,6 +68,10 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
     points: { x: number; y: number }[];
   } | null>(null);
   const rafRef = useRef<number>(0);
+  const colorRef = useRef(color);
+  const strokeWidthRef = useRef(strokeWidth);
+  colorRef.current = color;
+  strokeWidthRef.current = strokeWidth;
 
   useImperativeHandle(ref, () => ({
     undo: () => {
@@ -80,6 +84,9 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
     },
   }), [socket]);
 
+  const autoFadeRef = useRef(autoFade);
+  autoFadeRef.current = autoFade;
+
   // Remote in-progress strokes (keyed by sender socket ID)
   const remoteProgressRef = useRef<Map<string, DrawStroke>>(new Map());
 
@@ -88,9 +95,9 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
     if (stroke.senderId) remoteProgressRef.current.delete(stroke.senderId);
     strokesRef.current.push({
       ...stroke,
-      fadeStart: autoFade ? Date.now() + FADE_DELAY : Infinity,
+      fadeStart: autoFadeRef.current ? Date.now() + FADE_DELAY : Infinity,
     });
-  }, [autoFade]);
+  }, []);
 
   const onRemoteUndo = useCallback(() => {
     strokesRef.current.pop();
@@ -194,10 +201,10 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
 
     strokesRef.current.push({
       ...stroke,
-      fadeStart: autoFade ? Date.now() + FADE_DELAY : Infinity,
+      fadeStart: autoFadeRef.current ? Date.now() + FADE_DELAY : Infinity,
     });
     socket.current?.emit("draw:stroke", stroke);
-  }, [color, strokeWidth, socket, autoFade]);
+  }, [color, strokeWidth, socket]);
 
   // Render loop
   useEffect(() => {
@@ -227,39 +234,23 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
 
       // Draw in-progress stroke
       const d = drawingRef.current;
+      const c = colorRef.current;
+      const w = strokeWidthRef.current;
       if (d && d.points.length > 0) {
         if (d.type === "pen") {
-          drawStroke(
-            ctx!,
-            { type: "pen", color, width: strokeWidth, points: d.points },
-            1,
-          );
+          drawStroke(ctx!, { type: "pen", color: c, width: w, points: d.points }, 1);
         } else if (d.type === "arrow" && d.points.length >= 2) {
-          drawStroke(
-            ctx!,
-            {
-              type: "arrow",
-              color,
-              width: strokeWidth,
-              points: [d.points[0], d.points[d.points.length - 1]],
-            },
-            1,
-          );
+          drawStroke(ctx!, {
+            type: "arrow", color: c, width: w,
+            points: [d.points[0], d.points[d.points.length - 1]],
+          }, 1);
         } else if (d.type === "circle" && d.points.length >= 2) {
           const end = d.points[d.points.length - 1];
-          drawStroke(
-            ctx!,
-            {
-              type: "circle",
-              color,
-              width: strokeWidth,
-              cx: (d.startX + end.x) / 2,
-              cy: (d.startY + end.y) / 2,
-              rx: Math.abs(end.x - d.startX) / 2,
-              ry: Math.abs(end.y - d.startY) / 2,
-            },
-            1,
-          );
+          drawStroke(ctx!, {
+            type: "circle", color: c, width: w,
+            cx: (d.startX + end.x) / 2, cy: (d.startY + end.y) / 2,
+            rx: Math.abs(end.x - d.startX) / 2, ry: Math.abs(end.y - d.startY) / 2,
+          }, 1);
         }
       }
 
@@ -273,7 +264,7 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
 
     rafRef.current = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [color, strokeWidth]);
+  }, []);
 
   const cursor = useMemo(
     () => active ? buildCursor(tool, strokeWidth, color, scale) : "default",

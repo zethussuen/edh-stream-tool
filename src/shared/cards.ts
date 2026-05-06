@@ -1,4 +1,4 @@
-import type { ScryfallCard, SpotlightData } from "./types";
+import type { ScryfallCard, SpotlightData, FocusedCardData } from "./types";
 import { DEFAULT_CARD_HEIGHT, DEFAULT_CARD_WIDTH, OVERLAY_HEIGHT, OVERLAY_WIDTH } from "./constants";
 
 export function randomCardPosition(): { x: number; y: number } {
@@ -54,6 +54,13 @@ export function getCommanderLabel(
   );
   if (names.length === 0) return null;
   return names.join(" / ");
+}
+
+export function focusedCardPayload(card: ScryfallCard): FocusedCardData {
+  return {
+    name: card.name,
+    imageUriLarge: card.imageUriLarge,
+  };
 }
 
 export function cardDragStart(e: React.DragEvent, card: ScryfallCard) {

@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { ScryfallCard, TopDeckConfig, TopDeckAttendee, TopDeckTable, DecklistOverlayData, DecklistOverlaySection } from "@shared/types";
 import * as topdeck from "@shared/topdeck";
 import * as scryfall from "@shared/scryfall";
 import * as scrollrack from "@shared/scrollrack";
-import { cardAddPayload, spotlightPayload, cardDragStart, getCommanderLabel } from "@shared/cards";
+import { cardAddPayload, spotlightPayload, focusedCardPayload, cardDragStart, getCommanderLabel } from "@shared/cards";
 import { matchesFilter, parseQuery } from "@shared/card-filter";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { PlusSignCircleIcon, SpotlightIcon } from "@hugeicons/core-free-icons";
+import { PlusSignCircleIcon, SpotlightIcon, Image01Icon } from "@hugeicons/core-free-icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@shared/components/ui/tooltip";
 import { ManaCost } from "@shared/components/ManaCost";
 
@@ -109,6 +109,7 @@ function buildDecklistOverlay(
     cards: sortCards(section.cards, "mv", "asc").map((card) => ({
       name: card.name,
       manaCost: card.manaCost,
+      cmc: card.cmc,
       quantity: 1,
     })),
   }));
@@ -199,6 +200,7 @@ export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, 
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   const [lastFetched, setLastFetched] = useState<number | null>(null);
+  const loadGenRef = useRef(0);
 
   const hasApiKey = !!(topDeckConfig?.apiKey || hasServerKey);
 
@@ -240,15 +242,19 @@ export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, 
 
   const loadPlayerDeck = useCallback(async (attendee: TopDeckAttendee) => {
     if (!attendee.deckObj && !attendee.decklist) return;
+    const gen = ++loadGenRef.current;
     setSelectedPlayer(attendee);
     setDeckLoading(true);
     setDeckError(null);
     setSections([]);
 
+    const stale = () => loadGenRef.current !== gen;
+
     try {
       if (attendee.deckObj) {
         setProgress({ loaded: 0, total: 0 });
         const result = await buildSectionsFromIds(attendee.deckObj as Record<string, Record<string, { id: string }>>, true);
+        if (stale()) return;
         setSections(result.sections);
         setProgress({ loaded: result.found, total: result.total });
       } else if (attendee.decklist) {
@@ -258,10 +264,12 @@ export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, 
         }
 
         const validation = await scrollrack.validateDeck(attendee.decklist);
+        if (stale()) return;
 
         if (validation.decklist) {
           setProgress({ loaded: 0, total: 0 });
           const result = await buildSectionsFromIds(validation.decklist, false);
+          if (stale()) return;
           setSections(result.sections);
           setProgress({ loaded: result.found, total: result.total });
         } else {
@@ -274,6 +282,7 @@ export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, 
           setProgress({ loaded: 0, total: parsed.length });
           const cards: ScryfallCard[] = [];
           await scrollrack.resolveCardNames(parsed, (card, idx) => {
+            if (stale()) return;
             cards.push(card);
             setSections([{ name: "Deck", cards: [...cards] }]);
             setProgress({ loaded: idx + 1, total: parsed.length });
@@ -281,9 +290,10 @@ export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, 
         }
       }
     } catch (e) {
+      if (stale()) return;
       setDeckError({ type: "error", message: e instanceof Error ? e.message : "Failed to load deck" });
     } finally {
-      setDeckLoading(false);
+      if (!stale()) setDeckLoading(false);
     }
   }, []);
 
@@ -303,6 +313,11 @@ export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, 
 
   const spotlight = useCallback(
     (card: ScryfallCard) => emit("spotlight:show", spotlightPayload(card)),
+    [emit],
+  );
+
+  const focusCard = useCallback(
+    (card: ScryfallCard) => emit("focusedCard:set", focusedCardPayload(card)),
     [emit],
   );
 
@@ -379,20 +394,28 @@ export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, 
 
         {!deckLoading && sections.length > 0 && (
           <>
-            <button
-              onClick={() => {
-                const overlayData = buildDecklistOverlay(
-                  selectedPlayer.name,
-                  getCommanderLabel(selectedPlayer.deckObj),
-                  sections,
-                  commanderIds,
-                );
-                emit("decklist:set", overlayData);
-              }}
-              className="h-7 w-full rounded bg-gold/20 text-xs text-gold hover:bg-gold/30 transition-colors font-medium"
-            >
-              Show Decklist on Overlay
-            </button>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => {
+                  const overlayData = buildDecklistOverlay(
+                    selectedPlayer.name,
+                    getCommanderLabel(selectedPlayer.deckObj),
+                    sections,
+                    commanderIds,
+                  );
+                  emit("decklist:set", overlayData);
+                }}
+                className="h-7 flex-1 rounded bg-gold/20 text-xs text-gold hover:bg-gold/30 transition-colors font-medium"
+              >
+                Show Decklist on Overlay
+              </button>
+              <button
+                onClick={() => emit("decklist:set", null)}
+                className="h-7 px-2 rounded bg-bg-surface text-xs text-text-dim hover:bg-bg-raised hover:text-text-primary transition-colors"
+              >
+                Clear
+              </button>
+            </div>
             <input
               type="text"
               value={filter}
@@ -479,6 +502,17 @@ export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, 
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="left" sideOffset={6}>Add to overlay</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => focusCard(card)}
+                          className="h-6 w-6 flex items-center justify-center rounded bg-bg-surface text-text-dim hover:bg-gold hover:text-bg-base transition-colors"
+                        >
+                          <HugeiconsIcon icon={Image01Icon} size={14} color="currentColor" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" sideOffset={6}>Focus card</TooltipContent>
                     </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
