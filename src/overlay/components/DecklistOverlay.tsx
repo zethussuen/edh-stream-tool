@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { ManaCost } from "@shared/components/ManaCost";
 import type { DecklistOverlayData, DecklistOverlaySection } from "@shared/types";
 
@@ -6,6 +7,11 @@ interface Props {
 }
 
 function SectionBlock({ section }: { section: DecklistOverlaySection }) {
+  const sortedCards = useMemo(
+    () => [...section.cards].sort((a, b) => a.cmc - b.cmc || a.name.localeCompare(b.name)),
+    [section.cards],
+  );
+
   return (
     <div style={{ breakInside: "avoid", marginBottom: 16 }}>
       {/* Section header */}
@@ -42,7 +48,7 @@ function SectionBlock({ section }: { section: DecklistOverlaySection }) {
 
       {/* Card list */}
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {[...section.cards].sort((a, b) => a.cmc - b.cmc || a.name.localeCompare(b.name)).map((card, i) => (
+        {sortedCards.map((card, i) => (
           <div
             key={`${card.name}-${i}`}
             style={{

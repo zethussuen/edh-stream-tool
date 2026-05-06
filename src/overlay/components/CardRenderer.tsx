@@ -19,11 +19,11 @@ export function CardRenderer({ cards }: Props) {
 
   useEffect(() => {
     const currentIds = new Set(cards.map((c) => c.id));
+    const newEntering: string[] = [];
+    const newExiting: string[] = [];
 
     setTracked((prev) => {
       const next = new Map(prev);
-      const newEntering: string[] = [];
-      const newExiting: string[] = [];
 
       for (const card of cards) {
         if (!prev.has(card.id)) {
@@ -46,36 +46,35 @@ export function CardRenderer({ cards }: Props) {
       }
 
       prevIds.current = currentIds;
-
-      if (newEntering.length > 0) {
-        const t = setTimeout(() => {
-          timersRef.current.delete(t);
-          setTracked((p) => {
-            const n = new Map(p);
-            for (const id of newEntering) {
-              const cur = n.get(id);
-              if (cur?.anim === "entering") n.set(id, { ...cur, anim: "visible" });
-            }
-            return n;
-          });
-        }, 400);
-        timersRef.current.add(t);
-      }
-
-      if (newExiting.length > 0) {
-        const t = setTimeout(() => {
-          timersRef.current.delete(t);
-          setTracked((p) => {
-            const n = new Map(p);
-            for (const id of newExiting) n.delete(id);
-            return n;
-          });
-        }, 300);
-        timersRef.current.add(t);
-      }
-
       return next;
     });
+
+    if (newEntering.length > 0) {
+      const t = setTimeout(() => {
+        timersRef.current.delete(t);
+        setTracked((p) => {
+          const n = new Map(p);
+          for (const id of newEntering) {
+            const cur = n.get(id);
+            if (cur?.anim === "entering") n.set(id, { ...cur, anim: "visible" });
+          }
+          return n;
+        });
+      }, 400);
+      timersRef.current.add(t);
+    }
+
+    if (newExiting.length > 0) {
+      const t = setTimeout(() => {
+        timersRef.current.delete(t);
+        setTracked((p) => {
+          const n = new Map(p);
+          for (const id of newExiting) n.delete(id);
+          return n;
+        });
+      }, 300);
+      timersRef.current.add(t);
+    }
   }, [cards]);
 
   useEffect(() => {

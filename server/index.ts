@@ -22,6 +22,17 @@ export interface ServerInstance {
   port: number;
 }
 
+const obsDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function scheduleObsWrite(room: string, rooms: RoomManager, obsDir: string) {
+  const existing = obsDebounceTimers.get(room);
+  if (existing) clearTimeout(existing);
+  obsDebounceTimers.set(room, setTimeout(() => {
+    obsDebounceTimers.delete(room);
+    writeObsFiles(room, rooms, obsDir);
+  }, 50));
+}
+
 async function writeObsFiles(room: string, rooms: RoomManager, obsDir: string) {
   try {
     const safeRoom = sanitizeRoom(room);
@@ -231,25 +242,25 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
     socket.on("streamTable:set", (data) => {
       rooms.setStreamTable(room, data);
       socket.to(room).emit("streamTable:updated", data);
-      if (obsDir) writeObsFiles(room, rooms, obsDir);
+      if (obsDir) scheduleObsWrite(room, rooms, obsDir);
     });
 
     socket.on("namePlates:set", (data) => {
       rooms.setNamePlates(room, data);
       socket.to(room).emit("namePlates:updated", data);
-      if (obsDir) writeObsFiles(room, rooms, obsDir);
+      if (obsDir) scheduleObsWrite(room, rooms, obsDir);
     });
 
     socket.on("streamRound:set", (data) => {
       rooms.setStreamRound(room, data);
       socket.to(room).emit("streamRound:updated", data);
-      if (obsDir) writeObsFiles(room, rooms, obsDir);
+      if (obsDir) scheduleObsWrite(room, rooms, obsDir);
     });
 
     socket.on("streamStats:set", (data) => {
       rooms.setStreamStats(room, data);
       socket.to(room).emit("streamStats:updated", data);
-      if (obsDir) writeObsFiles(room, rooms, obsDir);
+      if (obsDir) scheduleObsWrite(room, rooms, obsDir);
     });
 
     socket.on("decklist:set", (data) => {

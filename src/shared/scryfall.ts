@@ -10,10 +10,11 @@ const HEADERS = {
 let rateLimitQueue: Promise<void> = Promise.resolve();
 
 function waitForRateLimit(): Promise<void> {
-  rateLimitQueue = rateLimitQueue.then(
+  const prev = rateLimitQueue;
+  rateLimitQueue = prev.then(
     () => new Promise((r) => setTimeout(r, SCRYFALL_RATE_LIMIT_MS)),
   );
-  return rateLimitQueue;
+  return prev;
 }
 
 async function throttledFetch(url: string): Promise<Response> {

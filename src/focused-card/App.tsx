@@ -16,8 +16,7 @@ export function App() {
     const handler = (data: FocusedCardData | null) => {
       if (data) {
         setCard(data);
-        // Trigger enter animation on next frame
-        requestAnimationFrame(() => setVisible(true));
+        setTimeout(() => setVisible(true), 0);
       } else {
         setVisible(false);
         // Wait for exit animation before clearing
