@@ -142,31 +142,50 @@ export function BottomStrip({ cards, spotlight, focusedCard, emit }: Props) {
             <TooltipContent side="top" sideOffset={6}>No focused card</TooltipContent>
           </Tooltip>
         )}
-        {spotlight?.backFace && (
+        {spotlight ? (
+          <div className="flex items-center gap-1">
+            {spotlight.backFace && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => emit("spotlight:flip")}
+                    className="h-9 w-9 flex items-center justify-center rounded bg-gold/20 border border-gold/40 text-brand hover:bg-gold/30 transition-colors"
+                  >
+                    <HugeiconsIcon icon={FlipHorizontalIcon} size={18} color="currentColor" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={6}>Flip spotlight</TooltipContent>
+              </Tooltip>
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => emit("spotlight:off")}
+                  className="h-9 flex items-center gap-1.5 rounded bg-gold/20 border border-gold/40 px-2.5 text-brand hover:bg-gold/30 transition-colors"
+                >
+                  <HugeiconsIcon icon={SpotlightIcon} size={16} color="currentColor" />
+                  <span className="text-xs max-w-[120px] truncate">
+                    {spotlight.flipped && spotlight.backFace ? spotlight.backFace.name : spotlight.name}
+                  </span>
+                  <span className="text-base leading-none ml-0.5">&times;</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={6}>Clear spotlight</TooltipContent>
+            </Tooltip>
+          </div>
+        ) : (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                onClick={() => emit("spotlight:flip")}
-                className="h-9 w-9 flex items-center justify-center rounded bg-bg-surface text-text-dim hover:text-text-primary hover:bg-bg-overlay transition-colors"
+                disabled
+                className="h-9 w-9 flex items-center justify-center rounded bg-bg-surface text-text-dim disabled:opacity-40 transition-colors"
               >
-                <HugeiconsIcon icon={FlipHorizontalIcon} size={20} color="currentColor" />
+                <HugeiconsIcon icon={LightbulbOffIcon} size={20} color="currentColor" />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={6}>Flip spotlight</TooltipContent>
+            <TooltipContent side="top" sideOffset={6}>No spotlight</TooltipContent>
           </Tooltip>
         )}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={() => emit("spotlight:off")}
-              disabled={!spotlight}
-              className="h-9 w-9 flex items-center justify-center rounded bg-bg-surface text-text-dim hover:bg-bg-overlay disabled:opacity-40 transition-colors"
-            >
-              <HugeiconsIcon icon={LightbulbOffIcon} size={20} color="currentColor" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="top" sideOffset={6}>Spotlight off</TooltipContent>
-        </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
             <button

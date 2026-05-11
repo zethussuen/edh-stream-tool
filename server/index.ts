@@ -337,7 +337,7 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
 
     socket.on("decklist:set", (data) => {
       rooms.setDecklistOverlay(room, data);
-      socket.to(room).emit("decklist:updated", data);
+      io.to(room).emit("decklist:updated", data);
     });
 
     socket.on("focusedCard:set", (data) => {

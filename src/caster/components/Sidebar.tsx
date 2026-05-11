@@ -1,5 +1,5 @@
 import { type RefObject, useCallback, useState } from "react";
-import type { TopDeckConfig, TopDeckTable, NamePlate } from "@shared/types";
+import type { TopDeckConfig, TopDeckTable, NamePlate, DecklistOverlayData } from "@shared/types";
 import { SearchPanel } from "./SearchPanel";
 import { DecklistPanel } from "./DecklistPanel";
 import { TournamentPanel } from "./TournamentPanel";
@@ -13,6 +13,7 @@ interface Props {
   streamTable: TopDeckTable | null;
   setStreamTable: (table: TopDeckTable | null, plates: NamePlate[] | null) => void;
   searchInputRef: RefObject<HTMLInputElement | null>;
+  activeDecklist: DecklistOverlayData | null;
 }
 
 const TABS = [
@@ -30,6 +31,7 @@ export function Sidebar({
   streamTable,
   setStreamTable,
   searchInputRef,
+  activeDecklist,
 }: Props) {
   const [pendingPlayerId, setPendingPlayerId] = useState<string | null>(null);
 
@@ -79,6 +81,7 @@ export function Sidebar({
             streamTable={streamTable}
             pendingPlayerId={pendingPlayerId}
             onPlayerConsumed={handlePlayerConsumed}
+            activeDecklist={activeDecklist}
           />
         )}
         {activeTab === "tournament" && (

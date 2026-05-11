@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { TopDeckConfig, TopDeckTable, NamePlate, FocusedCardData, StreamPlayerStats, BrandSettings } from "@shared/types";
+import type { TopDeckConfig, TopDeckTable, NamePlate, FocusedCardData, StreamPlayerStats, BrandSettings, DecklistOverlayData } from "@shared/types";
 import { OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
 import { applyBrandSettings, readCachedBrandSettings, useBrandSettings } from "@shared/brand";
 import { useRoom, useSocket, getRoom } from "@shared/socket";
@@ -52,6 +52,15 @@ export function App() {
     const handler = (data: FocusedCardData | null) => setFocusedCard(data);
     s.on("focusedCard:updated", handler);
     return () => { s.off("focusedCard:updated", handler); };
+  }, [socket]);
+
+  const [activeDecklist, setActiveDecklist] = useState<DecklistOverlayData | null>(null);
+  useEffect(() => {
+    const s = socket.current;
+    if (!s) return;
+    const handler = (data: DecklistOverlayData | null) => setActiveDecklist(data);
+    s.on("decklist:updated", handler);
+    return () => { s.off("decklist:updated", handler); };
   }, [socket]);
   const room = getRoom();
   const [topDeckConfig, setTopDeckConfigLocal] = useState<TopDeckConfig | null>(
@@ -279,6 +288,7 @@ export function App() {
         streamTable={streamTable}
         setStreamTable={setStreamTable}
         searchInputRef={searchInputRef}
+        activeDecklist={activeDecklist}
       />
 
       {/* Canvas (no draw layer) */}

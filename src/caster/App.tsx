@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DrawTool, TopDeckConfig, TopDeckTable, NamePlate, FocusedCardData, StreamPlayerStats } from "@shared/types";
+import type { DrawTool, TopDeckConfig, TopDeckTable, NamePlate, FocusedCardData, StreamPlayerStats, DecklistOverlayData } from "@shared/types";
 import { DRAW_COLORS, DRAW_WIDTHS, OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
 import { useBrandSettings } from "@shared/brand";
 import { useRoom, useSocket, getRoom } from "@shared/socket";
@@ -40,6 +40,16 @@ export function App() {
     const handler = (data: FocusedCardData | null) => setFocusedCard(data);
     s.on("focusedCard:updated", handler);
     return () => { s.off("focusedCard:updated", handler); };
+  }, [socket]);
+
+  // Active decklist on overlay
+  const [activeDecklist, setActiveDecklist] = useState<DecklistOverlayData | null>(null);
+  useEffect(() => {
+    const s = socket.current;
+    if (!s) return;
+    const handler = (data: DecklistOverlayData | null) => setActiveDecklist(data);
+    s.on("decklist:updated", handler);
+    return () => { s.off("decklist:updated", handler); };
   }, [socket]);
 
   // Receive stream table changes from other clients
@@ -214,6 +224,7 @@ export function App() {
         streamTable={streamTable}
         setStreamTable={setStreamTable}
         searchInputRef={searchInputRef}
+        activeDecklist={activeDecklist}
       />
 
       {/* Preview Canvas */}

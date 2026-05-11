@@ -17,6 +17,7 @@ interface Props {
   streamTable: TopDeckTable | null;
   pendingPlayerId: string | null;
   onPlayerConsumed: () => void;
+  activeDecklist: DecklistOverlayData | null;
 }
 
 interface DeckSection {
@@ -182,7 +183,7 @@ function PlayerRow({ attendee, onSelect }: { attendee: TopDeckAttendee; onSelect
   );
 }
 
-export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, pendingPlayerId, onPlayerConsumed }: Props) {
+export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, pendingPlayerId, onPlayerConsumed, activeDecklist }: Props) {
   const [attendees, setAttendees] = useState<TopDeckAttendee[]>([]);
   const [tournamentName, setTournamentName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -394,28 +395,40 @@ export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, 
 
         {!deckLoading && sections.length > 0 && (
           <>
-            <div className="flex gap-1.5">
-              <button
-                onClick={() => {
-                  const overlayData = buildDecklistOverlay(
-                    selectedPlayer.name,
-                    getCommanderLabel(selectedPlayer.deckObj),
-                    sections,
-                    commanderIds,
-                  );
-                  emit("decklist:set", overlayData);
-                }}
-                className="h-7 flex-1 rounded bg-gold/20 text-xs text-brand hover:bg-gold/30 transition-colors font-medium"
-              >
-                Show Decklist on Overlay
-              </button>
-              <button
-                onClick={() => emit("decklist:set", null)}
-                className="h-7 px-2 rounded bg-bg-surface text-xs text-text-dim hover:bg-bg-raised hover:text-text-primary transition-colors"
-              >
-                Clear
-              </button>
-            </div>
+            {(() => {
+              const isShowingThisPlayer = activeDecklist?.playerName === selectedPlayer.name;
+              return (
+                <button
+                  onClick={() => {
+                    if (isShowingThisPlayer) {
+                      emit("decklist:set", null);
+                    } else {
+                      const overlayData = buildDecklistOverlay(
+                        selectedPlayer.name,
+                        getCommanderLabel(selectedPlayer.deckObj),
+                        sections,
+                        commanderIds,
+                      );
+                      emit("decklist:set", overlayData);
+                    }
+                  }}
+                  className={`h-7 w-full rounded text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                    isShowingThisPlayer
+                      ? "bg-gold/40 text-brand border border-gold/60 hover:bg-gold/30"
+                      : "bg-gold/20 text-brand hover:bg-gold/30"
+                  }`}
+                >
+                  {isShowingThisPlayer ? (
+                    <>
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-status-green animate-pulse" />
+                      <span>Showing on Overlay — Hide</span>
+                    </>
+                  ) : (
+                    <span>Show Decklist on Overlay</span>
+                  )}
+                </button>
+              );
+            })()}
             <input
               type="text"
               value={filter}

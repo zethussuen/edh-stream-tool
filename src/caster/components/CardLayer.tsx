@@ -93,6 +93,7 @@ export function CardLayer({ cards, scale, interactive, emit }: Props) {
         return (
           <div
             key={card.id}
+            className="group"
             style={{
               position: "absolute",
               left: card.x,
@@ -125,39 +126,34 @@ export function CardLayer({ cards, scale, interactive, emit }: Props) {
               <button
                 title="Flip card"
                 onPointerDown={(e) => e.stopPropagation()}
+                onDoubleClick={(e) => e.stopPropagation()}
+                onContextMenu={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
                   emit("card:flip", { id: card.id });
                 }}
-                className="card-flip-btn"
+                className="opacity-0 group-hover:opacity-100 hover:!bg-black/90"
                 style={{
                   position: "absolute",
-                  top: 6,
-                  right: 6,
-                  width: 28,
-                  height: 28,
+                  top: "50%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                  width: 64,
+                  height: 64,
                   borderRadius: "50%",
-                  background: "rgba(0,0,0,0.55)",
-                  border: "1px solid rgba(255,255,255,0.25)",
-                  color: "#fff",
+                  background: "rgba(0,0,0,0.7)",
+                  border: "2px solid rgba(200, 170, 110, 0.85)",
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.5), 0 0 24px rgba(200, 170, 110, 0.35)",
+                  color: "#c8aa6e",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   padding: 0,
-                  opacity: 0.65,
                   transition: "opacity 0.15s ease, background 0.15s ease",
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.opacity = "1";
-                  e.currentTarget.style.background = "rgba(0,0,0,0.85)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.opacity = "0.65";
-                  e.currentTarget.style.background = "rgba(0,0,0,0.55)";
-                }}
               >
-                <HugeiconsIcon icon={FlipHorizontalIcon} size={16} color="currentColor" />
+                <HugeiconsIcon icon={FlipHorizontalIcon} size={32} color="currentColor" />
               </button>
             )}
           </div>
