@@ -14,9 +14,9 @@
     "check": "vp check",
     "electron:compile": "esbuild electron/main.ts --bundle --platform=node --outfile=dist-electron/main.js --format=esm --external:electron --alias:@shared=./src/shared --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\"",
     "electron:dev": "vp build && NODE_OPTIONS='--import tsx' electron .",
-    "electron:build": "vp build && pnpm electron:compile && electron-builder --mac --arm64 && electron-builder --win --x64",
-    "electron:build:mac": "vp build && pnpm electron:compile && electron-builder --mac --arm64",
-    "electron:build:win": "vp build && pnpm electron:compile && electron-builder --win --x64"
+    "electron:build": "vp build && pnpm electron:compile && electron-builder --mac --arm64 --publish never && electron-builder --win --x64 --publish never",
+    "electron:build:mac": "vp build && pnpm electron:compile && electron-builder --mac --arm64 --publish never",
+    "electron:build:win": "vp build && pnpm electron:compile && electron-builder --win --x64 --publish never"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
