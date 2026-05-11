@@ -52,11 +52,11 @@ const FONT_OPTIONS = [
 ];
 
 function FontPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => { setQuery(value); }, [value]);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const selectedRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -67,48 +67,88 @@ function FontPicker({ value, onChange }: { value: string; onChange: (v: string) 
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const filtered = FONT_OPTIONS.filter((f) =>
-    f.toLowerCase().includes(query.toLowerCase()),
-  ).slice(0, 24);
+  // Reset filter and focus search whenever the dropdown opens; scroll the
+  // current selection into view so users land on it.
+  useEffect(() => {
+    if (!open) return;
+    setQuery("");
+    searchRef.current?.focus();
+    requestAnimationFrame(() => {
+      selectedRef.current?.scrollIntoView({ block: "nearest" });
+    });
+  }, [open]);
+
+  const filtered = query
+    ? FONT_OPTIONS.filter((f) => f.toLowerCase().includes(query.toLowerCase()))
+    : FONT_OPTIONS;
 
   return (
     <div ref={containerRef} className="relative flex-1">
-      <input
-        type="text"
-        value={query}
-        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") { setOpen(false); }
-          if (e.key === "Enter" && filtered.length > 0) {
-            onChange(filtered[0]);
-            setQuery(filtered[0]);
-            setOpen(false);
-          }
-        }}
-        placeholder="Search fonts…"
-        className="h-8 w-full rounded border border-border bg-bg-surface px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-gold focus:outline-none"
-      />
-      {open && filtered.length > 0 && (
-        <div className="absolute z-[10001] top-full left-0 right-0 mt-1 max-h-52 overflow-y-auto rounded border border-border bg-bg-raised shadow-xl">
-          {filtered.map((f) => (
-            <button
-              key={f}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                onChange(f);
-                setQuery(f);
-                setOpen(false);
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="h-8 w-full flex items-center justify-between gap-2 rounded border border-border bg-bg-surface px-3 text-sm text-text-primary hover:border-gold/60 focus:border-gold focus:outline-none"
+      >
+        <span className="truncate">{value || "Select font…"}</span>
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          className={`shrink-0 text-text-muted transition-transform ${open ? "rotate-180" : ""}`}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M2 3.5l3 3 3-3" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute z-[10001] top-full left-0 right-0 mt-1 rounded border border-border bg-bg-raised shadow-xl">
+          <div className="p-1.5 border-b border-border">
+            <input
+              ref={searchRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") { e.preventDefault(); setOpen(false); }
+                if (e.key === "Enter" && filtered.length > 0) {
+                  e.preventDefault();
+                  onChange(filtered[0]);
+                  setOpen(false);
+                }
               }}
-              className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
-                f === value
-                  ? "text-brand bg-gold/10"
-                  : "text-text-primary hover:bg-bg-surface"
-              }`}
-            >
-              {f}
-            </button>
-          ))}
+              placeholder="Type to filter…"
+              className="h-7 w-full rounded border border-border bg-bg-surface px-2 text-xs text-text-primary placeholder:text-text-muted focus:border-gold focus:outline-none"
+            />
+          </div>
+          <div className="max-h-60 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-text-muted">No fonts match</div>
+            ) : (
+              filtered.map((f) => (
+                <button
+                  key={f}
+                  ref={f === value ? selectedRef : undefined}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    onChange(f);
+                    setOpen(false);
+                  }}
+                  className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
+                    f === value
+                      ? "text-brand bg-gold/10"
+                      : "text-text-primary hover:bg-bg-surface"
+                  }`}
+                >
+                  {f}
+                </button>
+              ))
+            )}
+          </div>
         </div>
       )}
     </div>
