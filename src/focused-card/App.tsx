@@ -70,7 +70,7 @@ export function App() {
               style={{
                 width: WIDTH,
                 height: HEIGHT,
-                borderRadius: 18,
+                borderRadius: 30,
                 position: "absolute",
                 inset: 0,
                 backfaceVisibility: isDFC ? "hidden" : "visible",
@@ -85,7 +85,7 @@ export function App() {
                 style={{
                   width: WIDTH,
                   height: HEIGHT,
-                  borderRadius: 18,
+                  borderRadius: 30,
                   position: "absolute",
                   inset: 0,
                   backfaceVisibility: "hidden",

@@ -4,6 +4,10 @@
 
 A real-time, multi-operator stream overlay tool for casting competitive EDH (cEDH) Magic: The Gathering tournaments. Casters search for MTG cards, drag them onto a shared stream overlay, draw annotations, and spotlight cards, all rendering live on the OBS overlay.
 
+## Support development
+
+cEDH Stream Tool is free and open source. If it helps your stream, consider supporting development on **[Patreon (Eldrazidev)](https://www.patreon.com/c/Eldrazidev)** — it directly funds new features, bug fixes, and continued maintenance.
+
 ## Download
 
 Grab the latest macOS (arm64) or Windows (x64) build from the **[Releases page](https://github.com/zethussuen/edh-stream-tool/releases/latest)**.

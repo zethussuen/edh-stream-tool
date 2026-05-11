@@ -342,7 +342,7 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
 
     socket.on("focusedCard:set", (data) => {
       rooms.setFocusedCard(room, data);
-      socket.to(room).emit("focusedCard:updated", data);
+      io.to(room).emit("focusedCard:updated", data);
     });
 
     socket.on("focusedCard:flip", () => {
@@ -354,7 +354,7 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
 
     socket.on("focusedCard:clear", () => {
       rooms.setFocusedCard(room, null);
-      socket.to(room).emit("focusedCard:updated", null);
+      io.to(room).emit("focusedCard:updated", null);
     });
 
     // ── Brand Settings ──
