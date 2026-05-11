@@ -76,7 +76,7 @@ cedh-stream-tool/
 │   │       ├── Sidebar.tsx         # Tab container: Search + Deck + Tournament
 │   │       ├── SearchPanel.tsx     # Scryfall search with draggable results + mana symbols
 │   │       ├── DecklistPanel.tsx   # Tournament-driven decklist browser (attendees, filter, sort)
-│   │       ├── TournamentPanel.tsx # Rounds, standings, stream pod selection, player click-through
+│   │       ├── TournamentPanel.tsx # Rounds, standings, stream pod selection, pod status badges, player click-through
 │   │       ├── SettingsDialog.tsx  # TopDeck API key, tournament ID, version display
 │   │       ├── PreviewCanvas.tsx   # Scaled 1920×1080 canvas wrapper + drop zone
 │   │       ├── CardLayer.tsx       # Draggable cards on canvas
@@ -762,7 +762,7 @@ The active feed producer's socket ID is stored in `RoomData.feedProducerId`. Cli
 - **Annotation fade toggle** — Toolbar button to toggle auto-fade on/off. When off, drawings persist until manually cleared.
 - **Electron packaging** — esbuild bundles electron/server into single JS file, electron-builder produces macOS arm64 (.dmg/.zip) and Windows x64 (.exe/.zip) distributables.
 - **Tournament-driven decklists** — Deck tab fetches from TopDeck.gg `/attendees` endpoint (staff access). Scryfall-syntax card filter with `t:`, `o:`, `c:`, `mv<=`, negation, OR/parentheses.
-- **Stream pod workflow** — Select a pod in Tournament tab, shared across all clients via server. Pod players highlighted in Deck tab.
+- **Stream pod workflow** — Select a pod in Tournament tab, shared across all clients via server. Pod players highlighted in Deck tab. Each table shows a colored status badge (Live / Done / Pending / Bye) for at-a-glance round progress.
 - **Mana symbols** — SVG mana symbols rendered throughout UI (card rows, spotlight, name plates) via `ManaCost` component.
 - **API caching** — TopDeck responses cached in localStorage. Manual "Pull Latest" to refresh. Survives page reload.
 - **Drag-and-drop with any tool** — Cards can be dragged from sidebar onto canvas even when a draw tool is active (drop zone on PreviewCanvas wrapper).

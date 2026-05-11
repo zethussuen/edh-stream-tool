@@ -11,8 +11,6 @@ interface Props {
   setColor: (color: string) => void;
   strokeWidth: number;
   setStrokeWidth: (w: number) => void;
-  autoFade: boolean;
-  setAutoFade: (v: boolean) => void;
   onUndo: () => void;
   onClearDrawings: () => void;
   onClearSpotlight: () => void;
@@ -45,8 +43,6 @@ export function Toolbar({
   setColor,
   strokeWidth,
   setStrokeWidth,
-  autoFade,
-  setAutoFade,
   onUndo,
   onClearDrawings,
   onClearSpotlight,
@@ -61,7 +57,7 @@ export function Toolbar({
       style={{ height: 48 }}
     >
       {/* Brand */}
-      <span className="font-heading text-xl tracking-wider text-gold mr-4">
+      <span className="font-heading text-xl tracking-wider text-brand mr-4">
         cEDH STREAM TOOL
         <span className="text-[10px] text-text-muted font-mono ml-1 align-middle">v{__APP_VERSION__}</span>
       </span>
@@ -142,27 +138,6 @@ export function Toolbar({
 
       <div className="h-6 w-px bg-border" />
 
-      {/* Auto-fade toggle */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            onClick={() => setAutoFade(!autoFade)}
-            className={`h-8 rounded px-3 text-xs transition-colors ${
-              autoFade
-                ? "bg-gold text-bg-base"
-                : "bg-bg-surface text-text-dim hover:bg-bg-overlay"
-            }`}
-          >
-            Fade
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" sideOffset={6}>
-          {autoFade ? "Drawings auto-fade (click to pin)" : "Drawings persist (click to auto-fade)"}
-        </TooltipContent>
-      </Tooltip>
-
-      <div className="h-6 w-px bg-border" />
-
       {/* Undo / Clear */}
       <Tooltip>
         <TooltipTrigger asChild>
@@ -196,7 +171,7 @@ export function Toolbar({
             onClick={onClearSpotlight}
             className={`h-8 rounded px-3 text-xs transition-colors ${
               spotlightActive
-                ? "bg-gold/20 text-gold border border-gold/40 hover:bg-gold/30"
+                ? "bg-gold/20 text-brand border border-gold/40 hover:bg-gold/30"
                 : "bg-bg-surface text-text-dim hover:bg-bg-overlay hover:text-text-primary"
             }`}
           >

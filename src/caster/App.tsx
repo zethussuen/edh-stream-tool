@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DrawTool, TopDeckConfig, TopDeckTable, NamePlate, FocusedCardData, StreamPlayerStats } from "@shared/types";
 import { DRAW_COLORS, DRAW_WIDTHS, OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
+import { useBrandSettings } from "@shared/brand";
 import { useRoom, useSocket, getRoom } from "@shared/socket";
 import { Toolbar } from "./components/Toolbar";
 import { Sidebar } from "./components/Sidebar";
@@ -14,12 +15,12 @@ export function App() {
   const { socket, connected } = useSocket("caster");
   const { state, emit } = useRoom(socket);
 
+  useBrandSettings(socket);
+
   // Drawing state
   const [drawTool, setDrawTool] = useState<DrawTool>("select");
   const [drawColor, setDrawColor] = useState<string>(DRAW_COLORS[0]);
   const [drawWidth, setDrawWidth] = useState<number>(DRAW_WIDTHS[1]);
-  const [autoFade, setAutoFade] = useState(true);
-
   // Sidebar
   const [activeTab, setActiveTab] = useState("search");
   const [streamTable, setStreamTableLocal] = useState<TopDeckTable | null>(null);
@@ -192,8 +193,6 @@ export function App() {
           setColor={setDrawColor}
           strokeWidth={drawWidth}
           setStrokeWidth={setDrawWidth}
-          autoFade={autoFade}
-          setAutoFade={setAutoFade}
           onUndo={handleUndo}
           onClearDrawings={handleClearDrawings}
           onClearSpotlight={() => emit("spotlight:off")}
@@ -235,7 +234,6 @@ export function App() {
             socket={socket}
             connected={connected}
             active={isDrawing}
-            autoFade={autoFade}
           />
         </PreviewCanvas>
       </div>

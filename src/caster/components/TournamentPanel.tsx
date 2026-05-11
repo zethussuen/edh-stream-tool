@@ -149,7 +149,7 @@ export function TournamentPanel({ config, hasServerKey, streamTable, onSetStream
   return (
     <div className="flex flex-col gap-2 p-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-gold truncate">
+        <h3 className="text-sm font-medium text-brand truncate">
           {tournamentName || "Tournament"}
         </h3>
         <button
@@ -191,13 +191,11 @@ export function TournamentPanel({ config, hasServerKey, streamTable, onSetStream
                 }`}
               >
                 <div className="flex items-center justify-between mb-1">
-                  <p className="text-[10px] text-text-muted">
-                    Table {table.table}
-                    {table.status !== "Pending" && (
-                      <span className="ml-1 text-text-dim">({table.status})</span>
-                    )}
+                  <p className="text-[10px] text-text-muted flex items-center gap-1.5">
+                    <span>Table {table.table}</span>
+                    <StatusBadge status={table.status} />
                     {isStream && (
-                      <span className="ml-1.5 text-gold font-medium">Stream Pod</span>
+                      <span className="text-brand font-medium">Stream Pod</span>
                     )}
                   </p>
                   {table.table !== "Byes" && (
@@ -225,8 +223,8 @@ export function TournamentPanel({ config, hasServerKey, streamTable, onSetStream
                       }}
                       className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
                         isStream
-                          ? "bg-gold/20 text-gold hover:bg-gold/30"
-                          : "text-text-muted hover:text-gold hover:bg-bg-overlay"
+                          ? "bg-gold/20 text-brand hover:bg-gold/30"
+                          : "text-text-muted hover:text-brand hover:bg-bg-overlay"
                       }`}
                     >
                       {isStream ? "Unset Stream Pod" : "Set as Stream Pod"}
@@ -246,7 +244,7 @@ export function TournamentPanel({ config, hasServerKey, streamTable, onSetStream
                             : "bg-bg-overlay hover:bg-bg-surface"
                         } ${p.id ? "cursor-pointer" : "cursor-default"}`}
                       >
-                        <span className={`text-xs ${isStream ? "text-gold" : "text-text-primary"}`}>
+                        <span className={`text-xs ${isStream ? "text-brand" : "text-text-primary"}`}>
                           {p.name}
                         </span>
                         {cmdr && (
@@ -291,5 +289,25 @@ export function TournamentPanel({ config, hasServerKey, streamTable, onSetStream
         })}
       </div>
     </div>
+  );
+}
+
+function StatusBadge({ status }: { status: TopDeckTable["status"] }) {
+  const styles: Record<TopDeckTable["status"], string> = {
+    Active: "bg-status-green/15 text-status-green border border-status-green/40",
+    Completed: "bg-bg-overlay text-text-dim border border-text-muted/30",
+    Pending: "bg-bg-overlay text-text-muted border border-text-muted/20",
+    Bye: "bg-bg-overlay text-text-muted border border-text-muted/20",
+  };
+  const label: Record<TopDeckTable["status"], string> = {
+    Active: "● Live",
+    Completed: "✓ Done",
+    Pending: "Pending",
+    Bye: "Bye",
+  };
+  return (
+    <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium uppercase tracking-wider leading-none ${styles[status]}`}>
+      {label[status]}
+    </span>
   );
 }

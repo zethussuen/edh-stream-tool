@@ -1,8 +1,7 @@
 import { app, BrowserWindow, Menu, shell } from "electron";
 import { join } from "path";
-import { networkInterfaces } from "os";
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
-import { startServer, type ServerInstance } from "../server/index.ts";
+import { startServer, getLanIp, type ServerInstance } from "../server/index.ts";
 
 // ── Single instance lock ──
 // Prevents multiple copies (port 3000 would conflict)
@@ -54,20 +53,6 @@ function saveWindowState(win: BrowserWindow) {
       // non-critical
     }
   }, 500);
-}
-
-// ── Utilities ──
-
-function getLanIp(): string {
-  const nets = networkInterfaces();
-  for (const name of Object.keys(nets)) {
-    for (const net of nets[name] ?? []) {
-      if (net.family === "IPv4" && !net.internal) {
-        return net.address;
-      }
-    }
-  }
-  return "localhost";
 }
 
 // ── OBS output directory ──
@@ -159,6 +144,7 @@ function buildMenu(baseUrl: string) {
         {
           label: "Reveal OBS Files",
           click: () => {
+            mkdirSync(obsDir, { recursive: true });
             shell.openPath(obsDir);
           },
         },
@@ -197,34 +183,6 @@ async function createWindow() {
 
   // Load the control panel
   await mainWindow.loadURL(`http://localhost:${server.port}/control/`);
-
-  // Inject a banner showing connection URLs
-  const overlayBase = `http://localhost:${server.port}`;
-  mainWindow.webContents.executeJavaScript(`
-    (function() {
-      const banner = document.createElement('div');
-      banner.id = 'electron-banner';
-      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#c8aa6e;color:#09090b;font-family:"JetBrains Mono",monospace;font-size:11px;text-align:center;padding:4px 12px;line-height:1.6;';
-
-      function urlSpan(label, url) {
-        return '<span style="user-select:none;cursor:default;font-weight:600;">' + label + '</span>' +
-               '<span style="user-select:text;cursor:text;background:rgba(0,0,0,0.08);padding:1px 4px;border-radius:3px;margin-left:4px;">' + url + '</span>';
-      }
-
-      banner.innerHTML = [
-        urlSpan('Casters:', '${baseUrl}/caster/'),
-        urlSpan('All Overlays:', '${overlayBase}/overlay/'),
-        urlSpan('Spotlight:', '${overlayBase}/spotlight/'),
-        urlSpan('Player names:', '${overlayBase}/nameplates/'),
-        urlSpan('Cards + Drawings:', '${overlayBase}/annotations/'),
-        urlSpan('Decklist:', '${overlayBase}/decklist/'),
-        urlSpan('Focused Card:', '${overlayBase}/focused-card/'),
-      ].join('<span style="user-select:none;color:rgba(0,0,0,0.3);margin:0 6px;">|</span>');
-
-      document.body.prepend(banner);
-      document.body.style.paddingTop = banner.offsetHeight + 'px';
-    })();
-  `);
 
   // Save window state on move/resize
   mainWindow.on("resize", () => mainWindow && saveWindowState(mainWindow));

@@ -91,6 +91,12 @@ export function useRoom(socket: React.RefObject<Socket | null>) {
         cards: prev.cards.map((c) => (c.id === id ? { ...c, zIndex } : c)),
       }));
     }
+    function onCardFlipped({ id, flipped }: { id: string; flipped: boolean }) {
+      setState((prev) => ({
+        ...prev,
+        cards: prev.cards.map((c) => (c.id === id ? { ...c, flipped } : c)),
+      }));
+    }
     function onSpotlightUpdated(data: SpotlightData) {
       setState((prev) => ({ ...prev, spotlight: data }));
     }
@@ -104,6 +110,7 @@ export function useRoom(socket: React.RefObject<Socket | null>) {
     s.on("card:resized", onCardResized);
     s.on("card:removed", onCardRemoved);
     s.on("card:zChanged", onCardZChanged);
+    s.on("card:flipped", onCardFlipped);
     s.on("spotlight:updated", onSpotlightUpdated);
     s.on("spotlight:cleared", onSpotlightCleared);
 
@@ -114,6 +121,7 @@ export function useRoom(socket: React.RefObject<Socket | null>) {
       s.off("card:resized", onCardResized);
       s.off("card:removed", onCardRemoved);
       s.off("card:zChanged", onCardZChanged);
+      s.off("card:flipped", onCardFlipped);
       s.off("spotlight:updated", onSpotlightUpdated);
       s.off("spotlight:cleared", onSpotlightCleared);
     };

@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import type { DecklistOverlayData } from "@shared/types";
 import { OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
 import { useSocket } from "@shared/socket";
+import { useBrandSettings } from "@shared/brand";
 import { DecklistOverlay } from "../overlay/components/DecklistOverlay";
 
 export function App() {
   const { socket } = useSocket("overlay");
+  useBrandSettings(socket);
   const [decklist, setDecklist] = useState<DecklistOverlayData | null>(null);
 
   useEffect(() => {

@@ -1,8 +1,9 @@
 {
   "name": "cedh-stream-tool",
-  "version": "0.1.7",
+  "version": "0.4.0",
   "description": "Real-time stream overlay tool for casting cEDH tournaments",
   "author": "eldrazi.dev",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "main": "electron/main.ts",
@@ -13,7 +14,9 @@
     "check": "vp check",
     "electron:compile": "esbuild electron/main.ts --bundle --platform=node --outfile=dist-electron/main.js --format=esm --external:electron --alias:@shared=./src/shared --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\"",
     "electron:dev": "vp build && NODE_OPTIONS='--import tsx' electron .",
-    "electron:build": "vp build && pnpm electron:compile && electron-builder --mac --arm64 && electron-builder --win --x64"
+    "electron:build": "vp build && pnpm electron:compile && electron-builder --mac --arm64 && electron-builder --win --x64",
+    "electron:build:mac": "vp build && pnpm electron:compile && electron-builder --mac --arm64",
+    "electron:build:win": "vp build && pnpm electron:compile && electron-builder --win --x64"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",

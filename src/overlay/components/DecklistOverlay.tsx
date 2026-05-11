@@ -21,15 +21,15 @@ function SectionBlock({ section }: { section: DecklistOverlaySection }) {
           alignItems: "baseline",
           gap: 6,
           marginBottom: 6,
-          borderBottom: "1px solid rgba(200, 170, 110, 0.3)",
+          borderBottom: "1px solid color-mix(in srgb, var(--color-gold) 30%, transparent)",
           paddingBottom: 4,
         }}
       >
         <span
           style={{
-            fontFamily: "'Bebas Neue', sans-serif",
+            fontFamily: "var(--font-heading)",
             fontSize: 20,
-            color: "#c8aa6e",
+            color: "var(--color-brand)",
             letterSpacing: 1,
           }}
         >
@@ -38,7 +38,7 @@ function SectionBlock({ section }: { section: DecklistOverlaySection }) {
         <span
           style={{
             fontSize: 14,
-            color: "rgba(200, 170, 110, 0.6)",
+            color: "color-mix(in srgb, var(--color-brand) 60%, transparent)",
             fontFamily: "'JetBrains Mono', monospace",
           }}
         >
@@ -101,7 +101,7 @@ export function DecklistOverlay({ data }: Props) {
       <div style={{ marginBottom: 20, flexShrink: 0 }}>
         <div
           style={{
-            fontFamily: "'Bebas Neue', sans-serif",
+            fontFamily: "var(--font-heading)",
             fontSize: 36,
             color: "#e4e0d8",
             letterSpacing: 2,
@@ -115,7 +115,7 @@ export function DecklistOverlay({ data }: Props) {
             style={{
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 16,
-              color: "#c8aa6e",
+              color: "var(--color-brand)",
               marginTop: 4,
             }}
           >

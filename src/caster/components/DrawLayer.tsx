@@ -45,7 +45,6 @@ interface Props {
   socket: React.RefObject<Socket | null>;
   connected: boolean;
   active: boolean;
-  autoFade: boolean;
 }
 
 export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
@@ -56,7 +55,6 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
   socket,
   connected,
   active,
-  autoFade,
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const strokesRef = useRef<DrawStrokeLocal[]>([]);
@@ -84,9 +82,6 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
     },
   }), [socket]);
 
-  const autoFadeRef = useRef(autoFade);
-  autoFadeRef.current = autoFade;
-
   // Remote in-progress strokes (keyed by sender socket ID)
   const remoteProgressRef = useRef<Map<string, DrawStroke>>(new Map());
 
@@ -95,7 +90,7 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
     if (stroke.senderId) remoteProgressRef.current.delete(stroke.senderId);
     strokesRef.current.push({
       ...stroke,
-      fadeStart: autoFadeRef.current ? Date.now() + FADE_DELAY : Infinity,
+      fadeStart: stroke.type === "arrow" ? Date.now() + FADE_DELAY : Infinity,
     });
   }, []);
 
@@ -201,7 +196,7 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
 
     strokesRef.current.push({
       ...stroke,
-      fadeStart: autoFadeRef.current ? Date.now() + FADE_DELAY : Infinity,
+      fadeStart: stroke.type === "arrow" ? Date.now() + FADE_DELAY : Infinity,
     });
     socket.current?.emit("draw:stroke", stroke);
   }, [color, strokeWidth, socket]);

@@ -21,7 +21,7 @@ const BORDER_RADII = [
 ];
 
 const nameStyle: React.CSSProperties = {
-  fontFamily: '"Bebas Neue", sans-serif',
+  fontFamily: "var(--font-heading)",
   fontSize: 24,
   lineHeight: 1.1,
   color: "#e4e0d8",
@@ -33,7 +33,7 @@ const deckNameStyle: React.CSSProperties = {
   fontFamily: '"JetBrains Mono", monospace',
   fontSize: 14,
   lineHeight: 1.2,
-  color: "#c8aa6e",
+  color: "var(--color-brand)",
 };
 
 const panelBase: React.CSSProperties = {

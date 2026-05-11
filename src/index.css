@@ -15,8 +15,12 @@
   --color-bg-overlay: #222228;
 
   --color-gold: #c8aa6e;
-  --color-gold-hover: #d4ba82;
-  --color-gold-dim: rgba(200, 170, 110, 0.12);
+  /* Brand text color — configurable per-room via SettingsDialog. Defaults to
+     the same gold as --color-gold so out-of-the-box appearance is unchanged.
+     Only used for text (Tailwind: text-brand / text-brand-hover; inline:
+     color: var(--color-brand)). Backgrounds, borders, and glows continue to
+     use --color-gold and stay fixed. */
+  --color-brand: #c8aa6e;
 
   --color-text-primary: #e4e0d8;
   --color-text-dim: #8a8678;
@@ -65,6 +69,13 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Derived gold + brand utilities — kept in @theme inline so Tailwind
+     generates `text-gold-hover`, `bg-gold-dim`, `text-brand-hover`, etc. while
+     still computing the values from the source vars at runtime. */
+  --color-gold-hover:  color-mix(in srgb, var(--color-gold) 80%, white 20%);
+  --color-gold-dim:    color-mix(in srgb, var(--color-gold) 12%, transparent);
+  --color-brand-hover: color-mix(in srgb, var(--color-brand) 80%, white 20%);
 }
 
 /* Dark-first: root is dark by default */

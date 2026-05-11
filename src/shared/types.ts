@@ -1,5 +1,15 @@
 // ── Scryfall ──
 
+export interface CardBackFace {
+  name: string;
+  imageUri: string;
+  imageUriLarge: string;
+  artCropUri: string;
+  manaCost: string;
+  typeLine: string;
+  oracleText: string;
+}
+
 export interface ScryfallCard {
   scryfallId: string;
   name: string;
@@ -21,11 +31,7 @@ export interface ScryfallCard {
   artCropUri: string;
   borderCropUri: string;
   doubleFaced: boolean;
-  backFace: {
-    name: string;
-    imageUri: string;
-    artCropUri: string;
-  } | null;
+  backFace: CardBackFace | null;
 }
 
 // ── Overlay ──
@@ -47,6 +53,8 @@ export interface OverlayCard {
   height: number;
   zIndex: number;
   spotlight: boolean;
+  flipped: boolean;
+  backFace: CardBackFace | null;
 }
 
 // ── Drawing ──
@@ -71,12 +79,17 @@ export type DrawTool = "select" | "pen" | "arrow" | "circle";
 // ── Spotlight ──
 
 export interface SpotlightData {
+  // Source card on the canvas, if any. null when spotlighted directly from
+  // search/decklist without a corresponding OverlayCard.
+  cardId: string | null;
   name: string;
   imageUri: string;
   imageUriLarge: string;
   manaCost: string;
   typeLine: string;
   oracleText: string;
+  flipped: boolean;
+  backFace: CardBackFace | null;
 }
 
 // ── Room State ──
@@ -192,6 +205,8 @@ export interface TopDeckPlayer {
 export interface FocusedCardData {
   name: string;
   imageUriLarge: string;
+  flipped: boolean;
+  backFace: CardBackFace | null;
 }
 
 // ── Decklist Overlay ──
@@ -229,6 +244,13 @@ export interface NamePlate {
   name: string;
   deckName: string | null;
   colorIdentity: string[];
+}
+
+// ── Brand Settings ──
+
+export interface BrandSettings {
+  accentColor: string;  // any valid CSS color: "#c8aa6e", "hsl(...)", "rgba(...)"
+  fontFamily: string;   // Google Font family name, e.g. "Bebas Neue", "Oswald"
 }
 
 export interface TopDeckAttendee {

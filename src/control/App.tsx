@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { TopDeckConfig, TopDeckTable, NamePlate, FocusedCardData, StreamPlayerStats } from "@shared/types";
+import type { TopDeckConfig, TopDeckTable, NamePlate, FocusedCardData, StreamPlayerStats, BrandSettings } from "@shared/types";
 import { OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
+import { applyBrandSettings, readCachedBrandSettings, useBrandSettings } from "@shared/brand";
 import { useRoom, useSocket, getRoom } from "@shared/socket";
 import { useFeedPublisher } from "@shared/feed";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@shared/components/ui/tooltip";
@@ -9,6 +10,7 @@ import { PreviewCanvas } from "../caster/components/PreviewCanvas";
 import { CardLayer } from "../caster/components/CardLayer";
 import { BottomStrip } from "../caster/components/BottomStrip";
 import { SettingsDialog } from "../caster/components/SettingsDialog";
+import { ConnectionUrlsPopover } from "./components/ConnectionUrlsPopover";
 
 export function App() {
   const { socket, connected } = useSocket("control");
@@ -98,6 +100,34 @@ export function App() {
       emit("topDeckConfig:set", { apiKey: saved.apiKey, tournamentId: saved.tournamentId });
     }
   }, [connected, emit]);
+
+  // ── Brand settings ──
+  // brand.ts pre-applies the cached settings at module load (before React
+  // mounts), so we only seed useState from the cache here for the settings
+  // dialog defaults. The useBrandSettings hook keeps state and cache in sync
+  // when the server echoes back brand:updated.
+  const [brandSettings, setBrandSettings] = useState<BrandSettings | null>(
+    () => readCachedBrandSettings(),
+  );
+  useBrandSettings(socket, setBrandSettings);
+
+  const brandSettingsRef = useRef(brandSettings);
+  brandSettingsRef.current = brandSettings;
+
+  // Re-emit on connect so all clients get current brand
+  useEffect(() => {
+    if (!connected) return;
+    if (brandSettingsRef.current) emit("brand:set", brandSettingsRef.current);
+  }, [connected, emit]);
+
+  const handleBrandSettingsChange = useCallback((settings: BrandSettings | null) => {
+    // Apply locally now for instant feedback; the server echo will keep the
+    // cache + other clients in sync.
+    setBrandSettings(settings);
+    applyBrandSettings(settings);
+    emit("brand:set", settings);
+  }, [emit]);
+
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [showDevicePicker, setShowDevicePicker] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -184,7 +214,7 @@ export function App() {
       <div className="col-span-2 flex items-center gap-3 border-b border-border bg-bg-raised px-4"
         style={{ height: 48 }}
       >
-        <span className="font-heading text-xl tracking-wider text-gold mr-4">
+        <span className="font-heading text-xl tracking-wider text-brand mr-4">
           PRODUCER CONTROL
         </span>
         <div className="flex-1" />
@@ -225,6 +255,7 @@ export function App() {
             </div>
           )}
         </div>
+        <ConnectionUrlsPopover />
         <button
           onClick={() => setSettingsOpen(true)}
           className="h-8 w-8 flex items-center justify-center rounded bg-bg-surface text-text-dim hover:bg-bg-overlay hover:text-text-primary transition-colors"
@@ -279,6 +310,8 @@ export function App() {
         onTopDeckConfigChange={setTopDeckConfig}
         hasServerKey={hasServerKey}
         role="control"
+        brandSettings={brandSettings}
+        onBrandSettingsChange={handleBrandSettingsChange}
       />
     </div>
   );

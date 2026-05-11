@@ -57,7 +57,7 @@ export function Sidebar({
             onClick={() => setActiveTab(tab.key)}
             className={`flex-1 py-2 text-xs font-medium tracking-wide uppercase transition-colors ${
               activeTab === tab.key
-                ? "border-b-2 border-gold text-gold"
+                ? "border-b-2 border-gold text-brand"
                 : "text-text-dim hover:text-text-primary"
             }`}
           >

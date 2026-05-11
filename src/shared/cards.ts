@@ -25,17 +25,22 @@ export function cardAddPayload(card: ScryfallCard, position?: { x: number; y: nu
     width: DEFAULT_CARD_WIDTH,
     height: DEFAULT_CARD_HEIGHT,
     spotlight: false,
+    flipped: false,
+    backFace: card.backFace ?? null,
   };
 }
 
 export function spotlightPayload(card: ScryfallCard): SpotlightData {
   return {
+    cardId: null,
     name: card.name,
     imageUri: card.imageUri,
     imageUriLarge: card.imageUriLarge,
     manaCost: card.manaCost,
     typeLine: card.typeLine,
     oracleText: card.oracleText,
+    flipped: false,
+    backFace: card.backFace ?? null,
   };
 }
 
@@ -60,6 +65,8 @@ export function focusedCardPayload(card: ScryfallCard): FocusedCardData {
   return {
     name: card.name,
     imageUriLarge: card.imageUriLarge,
+    flipped: false,
+    backFace: card.backFace ?? null,
   };
 }
 

@@ -1,6 +1,7 @@
 import { useCallback, useRef } from "react";
 import type { OverlayCard } from "@shared/types";
-import { OVERLAY_WIDTH } from "@shared/constants";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { FlipHorizontalIcon } from "@hugeicons/core-free-icons";
 
 interface Props {
   cards: OverlayCard[];
@@ -16,8 +17,8 @@ export function CardLayer({ cards, scale, interactive, emit }: Props) {
     startY: number;
     cardX: number;
     cardY: number;
+    moved: boolean;
   } | null>(null);
-
   const onPointerDown = useCallback(
     (e: React.PointerEvent, card: OverlayCard) => {
       if (e.button !== 0) return;
@@ -29,6 +30,7 @@ export function CardLayer({ cards, scale, interactive, emit }: Props) {
         startY: e.clientY,
         cardX: card.x,
         cardY: card.y,
+        moved: false,
       };
       emit("card:bringToFront", { id: card.id });
     },
@@ -41,11 +43,16 @@ export function CardLayer({ cards, scale, interactive, emit }: Props) {
       if (!ds) return;
       const dx = (e.clientX - ds.startX) / scale;
       const dy = (e.clientY - ds.startY) / scale;
-      emit("card:move", {
-        id: ds.id,
-        x: Math.round(ds.cardX + dx),
-        y: Math.round(ds.cardY + dy),
-      });
+      if (!ds.moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+        ds.moved = true;
+      }
+      if (ds.moved) {
+        emit("card:move", {
+          id: ds.id,
+          x: Math.round(ds.cardX + dx),
+          y: Math.round(ds.cardY + dy),
+        });
+      }
     },
     [scale, emit],
   );
@@ -78,31 +85,84 @@ export function CardLayer({ cards, scale, interactive, emit }: Props) {
         pointerEvents: interactive ? "auto" : "none",
       }}
     >
-      {cards.map((card) => (
-        <img
-          key={card.id}
-          src={card.imageUri}
-          alt={card.name}
-          title="Drag to move · Double-click to spotlight · Right-click to remove"
-          draggable={false}
-          style={{
-            position: "absolute",
-            left: card.x,
-            top: card.y,
-            width: card.width,
-            height: card.height,
-            zIndex: card.zIndex,
-            borderRadius: 12,
-            cursor: interactive ? "grab" : "default",
-            userSelect: "none",
-          }}
-          onPointerDown={(e) => onPointerDown(e, card)}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onContextMenu={(e) => onContextMenu(e, card)}
-          onDoubleClick={() => onDoubleClick(card)}
-        />
-      ))}
+      {cards.map((card) => {
+        const src = card.flipped && card.backFace ? card.backFace.imageUri : card.imageUri;
+        const altName = card.flipped && card.backFace ? card.backFace.name : card.name;
+        const isDFC = !!card.backFace;
+
+        return (
+          <div
+            key={card.id}
+            style={{
+              position: "absolute",
+              left: card.x,
+              top: card.y,
+              width: card.width,
+              height: card.height,
+              zIndex: card.zIndex,
+            }}
+          >
+            <img
+              src={src}
+              alt={altName}
+              title="Drag to move · Double-click to spotlight · Right-click to remove"
+              draggable={false}
+              style={{
+                width: "100%",
+                height: "100%",
+                borderRadius: 12,
+                cursor: interactive ? "grab" : "default",
+                userSelect: "none",
+                display: "block",
+              }}
+              onPointerDown={(e) => onPointerDown(e, card)}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onContextMenu={(e) => onContextMenu(e, card)}
+              onDoubleClick={() => onDoubleClick(card)}
+            />
+            {isDFC && interactive && (
+              <button
+                title="Flip card"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  emit("card:flip", { id: card.id });
+                }}
+                className="card-flip-btn"
+                style={{
+                  position: "absolute",
+                  top: 6,
+                  right: 6,
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  background: "rgba(0,0,0,0.55)",
+                  border: "1px solid rgba(255,255,255,0.25)",
+                  color: "#fff",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 0,
+                  opacity: 0.65,
+                  transition: "opacity 0.15s ease, background 0.15s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.opacity = "1";
+                  e.currentTarget.style.background = "rgba(0,0,0,0.85)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = "0.65";
+                  e.currentTarget.style.background = "rgba(0,0,0,0.55)";
+                }}
+              >
+                <HugeiconsIcon icon={FlipHorizontalIcon} size={16} color="currentColor" />
+              </button>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

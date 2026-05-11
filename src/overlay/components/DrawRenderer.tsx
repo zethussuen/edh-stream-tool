@@ -21,7 +21,7 @@ export function DrawRenderer({ socket, connected }: Props) {
     if (stroke.senderId) progressRef.current.delete(stroke.senderId);
     strokesRef.current.push({
       ...stroke,
-      fadeStart: Date.now() + FADE_DELAY,
+      fadeStart: stroke.type === "arrow" ? Date.now() + FADE_DELAY : Infinity,
     });
   }, []);
 

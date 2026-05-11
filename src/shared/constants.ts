@@ -9,6 +9,11 @@ export const DEFAULT_CARD_HEIGHT = 340;
 
 export const SCRYFALL_RATE_LIMIT_MS = 100;
 
+export const DEFAULT_BRAND = {
+  accentColor: "#c8aa6e",
+  fontFamily: "Bebas Neue",
+};
+
 export const DRAW_COLORS = [
   "#ef4444", // red
   "#eab308", // yellow

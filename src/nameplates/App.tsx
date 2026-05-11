@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { useSocket } from "@shared/socket";
 import { OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
 import type { NamePlate } from "@shared/types";
+import { useBrandSettings } from "@shared/brand";
 import { NamePlates } from "../overlay/components/NamePlates";
 
 export function App() {
   const { socket } = useSocket("overlay");
+  useBrandSettings(socket);
   const [namePlates, setNamePlates] = useState<NamePlate[] | null>(null);
 
   useEffect(() => {

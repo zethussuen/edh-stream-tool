@@ -174,7 +174,7 @@ function PlayerRow({ attendee, onSelect }: { attendee: TopDeckAttendee; onSelect
         )}
       </div>
       {hasDeck ? (
-        <span className="text-[10px] text-gold shrink-0">Deck &rarr;</span>
+        <span className="text-[10px] text-brand shrink-0">Deck &rarr;</span>
       ) : (
         <span className="text-[10px] text-text-muted shrink-0">No deck</span>
       )}
@@ -375,7 +375,7 @@ export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, 
       <div className="flex flex-col gap-2 p-3">
         <button
           onClick={goBack}
-          className="flex items-center gap-1 text-xs text-gold hover:text-gold-hover transition-colors self-start"
+          className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover transition-colors self-start"
         >
           &larr; Back to players
         </button>
@@ -383,7 +383,7 @@ export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, 
         <div className="mb-1">
           <p className="text-sm font-medium text-text-primary">{selectedPlayer.name}</p>
           {getCommanderLabel(selectedPlayer.deckObj) && (
-            <p className="text-xs text-gold truncate">{getCommanderLabel(selectedPlayer.deckObj)}</p>
+            <p className="text-xs text-brand truncate">{getCommanderLabel(selectedPlayer.deckObj)}</p>
           )}
           {selectedPlayer.standing != null && (
             <p className="text-[11px] text-text-dim">
@@ -405,7 +405,7 @@ export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, 
                   );
                   emit("decklist:set", overlayData);
                 }}
-                className="h-7 flex-1 rounded bg-gold/20 text-xs text-gold hover:bg-gold/30 transition-colors font-medium"
+                className="h-7 flex-1 rounded bg-gold/20 text-xs text-brand hover:bg-gold/30 transition-colors font-medium"
               >
                 Show Decklist on Overlay
               </button>
@@ -444,7 +444,7 @@ export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, 
               href={deckError.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-gold hover:text-gold-hover underline"
+              className="text-brand hover:text-brand-hover underline"
             >
               Open decklist
             </a>
@@ -485,7 +485,7 @@ export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, 
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
                         onDragStart={(e) => e.stopPropagation()}
-                        className="text-sm text-text-primary truncate hover:text-gold hover:underline transition-colors"
+                        className="text-sm text-text-primary truncate hover:text-brand hover:underline transition-colors"
                       >{card.name}</a>
                       <ManaCost cost={card.manaCost} size={14} />
                     </div>
@@ -543,16 +543,24 @@ export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, 
   return (
     <div className="flex flex-col gap-2 p-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-gold truncate">
+        <h3 className="text-sm font-medium text-brand truncate">
           {tournamentName || "Tournament"}
         </h3>
-        <button
-          onClick={() => fetchAttendees(true)}
-          disabled={loading}
-          className="h-6 rounded bg-bg-surface px-2 text-[10px] text-text-dim hover:bg-bg-overlay transition-colors"
-        >
-          {loading ? "..." : "Pull Latest"}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => emit("decklist:set", null)}
+            className="h-6 rounded bg-bg-surface px-2 text-[10px] text-text-dim hover:bg-bg-raised hover:text-text-primary transition-colors"
+          >
+            Clear Overlay
+          </button>
+          <button
+            onClick={() => fetchAttendees(true)}
+            disabled={loading}
+            className="h-6 rounded bg-bg-surface px-2 text-[10px] text-text-dim hover:bg-bg-overlay transition-colors"
+          >
+            {loading ? "..." : "Pull Latest"}
+          </button>
+        </div>
       </div>
 
       {lastFetched && (
@@ -605,7 +613,7 @@ function StreamTableSection({
 
   return (
     <div className="mb-3 rounded border border-gold/30 bg-gold/5 p-2">
-      <p className="text-[10px] font-medium uppercase tracking-widest text-gold mb-1.5">
+      <p className="text-[10px] font-medium uppercase tracking-widest text-brand mb-1.5">
         Stream Pod — Table {table.table}
       </p>
       <div className="flex flex-col gap-1">
@@ -624,7 +632,7 @@ function StreamTableSection({
 }
 
 const PILL = "px-1.5 py-0.5 rounded text-[10px] transition-colors";
-const PILL_ON = `${PILL} bg-gold/20 text-gold`;
+const PILL_ON = `${PILL} bg-gold/20 text-brand`;
 const PILL_OFF = `${PILL} text-text-muted hover:text-text-dim hover:bg-bg-surface`;
 
 function SortControls({

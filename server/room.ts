@@ -1,4 +1,4 @@
-import type { OverlayCard, RoomState, SpotlightData, TopDeckTable, NamePlate, DecklistOverlayData, FocusedCardData, StreamPlayerStats } from "../src/shared/types.js";
+import type { OverlayCard, RoomState, SpotlightData, TopDeckTable, NamePlate, DecklistOverlayData, FocusedCardData, StreamPlayerStats, BrandSettings } from "../src/shared/types.js";
 import { OVERLAY_WIDTH, OVERLAY_HEIGHT } from "../src/shared/constants.js";
 
 interface TopDeckRoomConfig {
@@ -17,6 +17,7 @@ interface RoomData {
   feedProducerId: string | null;
   streamRound: { round: number | string; tournamentName: string } | null;
   streamStats: StreamPlayerStats[] | null;
+  brandSettings: BrandSettings | null;
 }
 
 export class RoomManager {
@@ -37,6 +38,8 @@ export class RoomManager {
     );
     const card: OverlayCard = {
       ...data,
+      flipped: data.flipped ?? false,
+      backFace: data.backFace ?? null,
       id: `card-${rd.nextCardId++}`,
       zIndex: maxZ + 1,
     };
@@ -70,9 +73,8 @@ export class RoomManager {
     if (!rd) return false;
     const idx = rd.state.cards.findIndex((c) => c.id === id);
     if (idx === -1) return false;
-    const removed = rd.state.cards[idx];
     rd.state.cards.splice(idx, 1);
-    if (rd.state.spotlight?.name === removed.name) {
+    if (rd.state.spotlight?.cardId === id) {
       rd.state.spotlight = null;
     }
     return true;
@@ -104,20 +106,44 @@ export class RoomManager {
     const card = rd.state.cards.find((c) => c.id === id);
     if (!card) return { on: false };
     // If already spotlighting this card, turn off
-    if (rd.state.spotlight?.name === card.name) {
+    if (rd.state.spotlight?.cardId === card.id) {
       rd.state.spotlight = null;
       return { on: false };
     }
     const data: SpotlightData = {
+      cardId: card.id,
       name: card.name,
       imageUri: card.imageUri,
       imageUriLarge: card.imageUriLarge,
       manaCost: card.manaCost,
       typeLine: card.typeLine,
       oracleText: card.oracleText,
+      flipped: card.flipped,
+      backFace: card.backFace ?? null,
     };
     rd.state.spotlight = data;
     return { on: true, card: data };
+  }
+
+  flipCard(room: string, id: string): { card: OverlayCard; spotlight: SpotlightData | null } | null {
+    const rd = this.rooms.get(room);
+    const card = rd?.state.cards.find((c) => c.id === id);
+    if (!card || !card.backFace) return null;
+    card.flipped = !card.flipped;
+    // Sync spotlight flip if this card is currently spotlighted
+    let spotlight: SpotlightData | null = null;
+    if (rd?.state.spotlight?.cardId === card.id && rd.state.spotlight.backFace) {
+      rd.state.spotlight = { ...rd.state.spotlight, flipped: card.flipped };
+      spotlight = rd.state.spotlight;
+    }
+    return { card, spotlight };
+  }
+
+  flipSpotlight(room: string): SpotlightData | null {
+    const rd = this.rooms.get(room);
+    if (!rd?.state.spotlight?.backFace) return null;
+    rd.state.spotlight = { ...rd.state.spotlight, flipped: !rd.state.spotlight.flipped };
+    return rd.state.spotlight;
   }
 
   clearSpotlight(room: string): void {
@@ -186,6 +212,13 @@ export class RoomManager {
     return this.rooms.get(room)?.focusedCard ?? null;
   }
 
+  flipFocusedCard(room: string): FocusedCardData | null {
+    const rd = this.rooms.get(room);
+    if (!rd?.focusedCard?.backFace) return null;
+    rd.focusedCard = { ...rd.focusedCard, flipped: !rd.focusedCard.flipped };
+    return rd.focusedCard;
+  }
+
   setStreamRound(room: string, data: { round: number | string; tournamentName: string } | null): void {
     this.getRoomData(room).streamRound = data;
   }
@@ -200,6 +233,14 @@ export class RoomManager {
 
   getStreamStats(room: string): StreamPlayerStats[] | null {
     return this.rooms.get(room)?.streamStats ?? null;
+  }
+
+  setBrandSettings(room: string, data: BrandSettings | null): void {
+    this.getRoomData(room).brandSettings = data;
+  }
+
+  getBrandSettings(room: string): BrandSettings | null {
+    return this.rooms.get(room)?.brandSettings ?? null;
   }
 
   clearAll(room: string): RoomState {
@@ -227,6 +268,7 @@ export class RoomManager {
         feedProducerId: null,
         streamRound: null,
         streamStats: null,
+        brandSettings: null,
       };
       this.rooms.set(room, rd);
     }

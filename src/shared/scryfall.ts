@@ -35,8 +35,12 @@ function mapCard(raw: any): ScryfallCard {
   const faces = raw.card_faces;
   const hasMultipleFaces = Array.isArray(faces) && faces.length > 1;
   const frontFace = hasMultipleFaces ? faces[0] : null;
+  const backFaceRaw = hasMultipleFaces ? faces[1] : null;
 
-  // Double-faced cards have image_uris on card_faces, not at top level
+  // Transform DFCs and MDFCs have image_uris on each face, not at top level.
+  // Split cards and adventure cards have a top-level image_uris and no per-face images.
+  const isVisualDFC = hasMultipleFaces && backFaceRaw?.image_uris != null;
+
   const imgs = raw.image_uris ?? frontFace?.image_uris ?? {};
 
   return {
@@ -44,9 +48,9 @@ function mapCard(raw: any): ScryfallCard {
     name: raw.name,
     manaCost: raw.mana_cost ?? frontFace?.mana_cost ?? "",
     cmc: raw.cmc ?? 0,
-    typeLine: raw.type_line ?? "",
+    typeLine: raw.type_line ?? frontFace?.type_line ?? "",
     oracleText: raw.oracle_text ?? frontFace?.oracle_text ?? "",
-    artist: raw.artist ?? "",
+    artist: raw.artist ?? frontFace?.artist ?? "",
     setName: raw.set_name ?? "",
     rarity: raw.rarity ?? "",
     colors: raw.colors ?? frontFace?.colors ?? [],
@@ -59,12 +63,16 @@ function mapCard(raw: any): ScryfallCard {
     imageUriSmall: imgs.small ?? "",
     artCropUri: imgs.art_crop ?? "",
     borderCropUri: imgs.border_crop ?? "",
-    doubleFaced: hasMultipleFaces,
-    backFace: hasMultipleFaces
+    doubleFaced: isVisualDFC,
+    backFace: isVisualDFC
       ? {
-          name: faces[1].name,
-          imageUri: faces[1].image_uris?.normal ?? "",
-          artCropUri: faces[1].image_uris?.art_crop ?? "",
+          name: backFaceRaw.name,
+          imageUri: backFaceRaw.image_uris.normal ?? "",
+          imageUriLarge: backFaceRaw.image_uris.large ?? "",
+          artCropUri: backFaceRaw.image_uris.art_crop ?? "",
+          manaCost: backFaceRaw.mana_cost ?? "",
+          typeLine: backFaceRaw.type_line ?? "",
+          oracleText: backFaceRaw.oracle_text ?? "",
         }
       : null,
   };

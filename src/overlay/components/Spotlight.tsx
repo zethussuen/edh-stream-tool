@@ -8,6 +8,39 @@ interface Props {
 export function Spotlight({ card }: Props) {
   if (!card) return null;
 
+  const isDFC = !!card.backFace;
+  const flipped = card.flipped && isDFC;
+
+  // Text panel shows whichever face is currently up. We re-key on the face
+  // name so the panel cross-fades when flipping, matching the 3D card flip.
+  const face = flipped && card.backFace
+    ? {
+        name: card.backFace.name,
+        manaCost: card.backFace.manaCost,
+        typeLine: card.backFace.typeLine,
+        oracleText: card.backFace.oracleText,
+      }
+    : {
+        name: card.name,
+        manaCost: card.manaCost,
+        typeLine: card.typeLine,
+        oracleText: card.oracleText,
+      };
+
+  const cardBoxShadow =
+    "0 0 60px color-mix(in srgb, var(--color-gold) 50%, transparent), 0 0 120px color-mix(in srgb, var(--color-gold) 20%, transparent)";
+
+  const faceStyle: React.CSSProperties = {
+    position: "absolute",
+    inset: 0,
+    width: "100%",
+    height: "100%",
+    borderRadius: 24,
+    backfaceVisibility: "hidden",
+    WebkitBackfaceVisibility: "hidden",
+    boxShadow: cardBoxShadow,
+  };
+
   return (
     <div
       style={{
@@ -23,38 +56,68 @@ export function Spotlight({ card }: Props) {
         animation: "spotlight-in 0.3s ease forwards",
       }}
     >
-      {/* Card image */}
-      <img
-        src={card.imageUriLarge || card.imageUri}
-        alt={card.name}
-        draggable={false}
+      {/* Card image — 3D flip wrapper */}
+      <div
         style={{
           width: 480,
           height: 670,
-          borderRadius: 24,
-          boxShadow:
-            "0 0 60px rgba(200, 170, 110, 0.5), 0 0 120px rgba(200, 170, 110, 0.2)",
+          perspective: 1600,
           animation: "spotlight-card-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards",
         }}
-      />
+      >
+        <div
+          style={{
+            position: "relative",
+            width: "100%",
+            height: "100%",
+            transformStyle: "preserve-3d",
+            transition: isDFC ? "transform 0.5s ease" : "none",
+            transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)",
+          }}
+        >
+          <img
+            src={card.imageUriLarge || card.imageUri}
+            alt={card.name}
+            draggable={false}
+            style={faceStyle}
+          />
+          {isDFC && (
+            <img
+              src={card.backFace!.imageUriLarge || card.backFace!.imageUri}
+              alt={card.backFace!.name}
+              draggable={false}
+              style={{ ...faceStyle, transform: "rotateY(180deg)" }}
+            />
+          )}
+        </div>
+      </div>
 
-      {/* Card info */}
-      <div style={{ maxWidth: 400, display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* Card info — cross-fades when face changes */}
+      <div
+        key={face.name}
+        style={{
+          maxWidth: 400,
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+          animation: "spotlight-text-in 0.35s ease forwards",
+        }}
+      >
         <h1
           style={{
-            fontFamily: '"Bebas Neue", sans-serif',
+            fontFamily: "var(--font-heading)",
             fontSize: 56,
-            color: "#c8aa6e",
+            color: "var(--color-brand)",
             margin: 0,
             lineHeight: 1,
             letterSpacing: 2,
           }}
         >
-          {card.name}
+          {face.name}
         </h1>
-        {card.manaCost && (
+        {face.manaCost && (
           <div style={{ margin: 0, opacity: 0.8 }}>
-            <ManaCost cost={card.manaCost} size={28} gap={6} />
+            <ManaCost cost={face.manaCost} size={28} gap={6} />
           </div>
         )}
         <p
@@ -65,9 +128,9 @@ export function Spotlight({ card }: Props) {
             margin: 0,
           }}
         >
-          {card.typeLine}
+          {face.typeLine}
         </p>
-        {card.oracleText && (
+        {face.oracleText && (
           <p
             style={{
               fontFamily: '"JetBrains Mono", monospace',
@@ -79,7 +142,7 @@ export function Spotlight({ card }: Props) {
               whiteSpace: "pre-wrap",
             }}
           >
-            {card.oracleText}
+            {face.oracleText}
           </p>
         )}
       </div>
@@ -92,6 +155,10 @@ export function Spotlight({ card }: Props) {
         @keyframes spotlight-card-in {
           from { transform: scale(0.8); opacity: 0; }
           to { transform: scale(1); opacity: 1; }
+        }
+        @keyframes spotlight-text-in {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>

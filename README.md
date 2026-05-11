@@ -4,6 +4,14 @@
 
 A real-time, multi-operator stream overlay tool for casting competitive EDH (cEDH) Magic: The Gathering tournaments. Casters search for MTG cards, drag them onto a shared stream overlay, draw annotations, and spotlight cards — all rendering live on the OBS overlay.
 
+## Download
+
+Grab the latest macOS (arm64) or Windows (x64) build from the **[Releases page](https://github.com/zethussuen/edh-stream-tool/releases/latest)**.
+
+Builds are unsigned, so the first launch shows a Gatekeeper / SmartScreen warning:
+- **macOS:** right-click the app → **Open** → confirm. Only needed on the first launch.
+- **Windows:** click **More info** → **Run anyway** on the SmartScreen prompt.
+
 ## Setup (Tournament Day)
 
 ### 1. Producer: open the app
@@ -70,9 +78,9 @@ Open `/caster/` on your laptop. From here you can:
 - **Focus a card** — click the picture-frame icon next to a card to send it to the Focused Card overlay source (672×936 insert).
 - **Draw annotations** — switch tools with the toolbar or keyboard shortcuts:
   - `V` Select/move
-  - `P` Pen (freehand)
-  - `A` Arrow
-  - `C` Circle
+  - `P` Pen (freehand, stays until cleared)
+  - `A` Arrow (auto-fades after ~8 seconds)
+  - `C` Circle (stays until cleared)
   - `X` Clear all drawings
   - `Ctrl+Z` Undo last drawing
 - **Spotlight a card** — double-click a card on the canvas, or click the spotlight icon in search results. Clear spotlight with `Escape`.
@@ -80,9 +88,9 @@ Open `/caster/` on your laptop. From here you can:
 - **Browse tournament decklists** — click a player in the Deck tab to see their full 99-card deck with drag/add/spotlight/focus actions.
 - **Filter decklists** — Scryfall-like syntax: `t:instant mv<=2`, `o:"draw"`, `c:u`, `-t:land`, `(c:u or c:g)`. Group by section or type, sort by name or mana value.
 - **Show decklist on overlay** — after loading a player's deck, click "Show Decklist on Overlay" to push it to the `/decklist/` browser source.
-- **Set stream pod** — in the Tournament tab, click "Set as Stream Pod" on a table. Highlights those players in the Deck tab and renders name plates on the overlay.
+- **Set stream pod** — in the Tournament tab, click "Set as Stream Pod" on a table. Highlights those players in the Deck tab and renders name plates on the overlay. Each pod shows a status badge (`● Live` for active, `✓ Done` for completed, `Pending`/`Bye`) so you can see at a glance which tables are still playing.
 
-Drawings auto-fade after 6 seconds by default. Toggle **Fade** in the toolbar to pin drawings until manually cleared.
+Arrows auto-fade after ~8 seconds. Pen and circle drawings stay on screen until cleared with `X`, `Ctrl+Z`, or the clear button.
 
 ### Producer
 
@@ -103,12 +111,34 @@ All clients in the same room share state. Default room is `default`.
 
 ---
 
+## OBS Text Source files (Windows & macOS)
+
+The app writes plain `.txt` files you can use as OBS Text Sources for lower-thirds and scoreboards. Files are created at startup (empty) and updated live as tournament data changes.
+
+**Location:** `Documents/cEDH Stream Tool/` (open via **Help → Reveal OBS Files** in the menu bar)
+
+| File | Contents |
+|------|----------|
+| `tournament_name.txt` | Tournament name |
+| `round.txt` | Current round number |
+| `table.txt` | Feature table number |
+| `match_status.txt` | Table status (Active / Completed / …) |
+| `player1_name.txt` … `player4_name.txt` | Player names (seats 1–4) |
+| `player1_commander.txt` … `player4_commander.txt` | Commander names |
+| `player1_standing.txt` … `player4_standing.txt` | Current standings |
+| `player1_record.txt` … `player4_record.txt` | W-L-D records |
+
+For non-default rooms, files are written to a subfolder: `Documents/cEDH Stream Tool/<room-name>/`.
+
+---
+
 ## Troubleshooting
 
 - **Casters can't connect** — check firewall on the producer's laptop; port 3000 must be reachable on the local network
 - **OBS overlay not updating** — ensure the Browser Source URL uses `localhost` (not the network IP) and "Shutdown source when not visible" is off
 - **Decklists not showing** — TopDeck.gg requires the tournament organizer to enable "Show Decks" or the tournament to have ended
 - **No Virtual Camera option** — make sure OBS has started Virtual Camera before clicking "Start Camera" in the producer panel
+- **"Reveal OBS Files" opens nothing** — fixed in v0.3.0; update to the latest release
 
 ---
 
@@ -127,6 +157,22 @@ pnpm electron:build  # Package .dmg (macOS) + .exe (Windows)
 
 Create `.env.local` with `TOPDECK_API_KEY=your-key` to set a server-side fallback API key.
 
+### Cutting a release
+
+GitHub Actions builds macOS (arm64) + Windows (x64) zips and publishes them to the Releases page whenever a `v*.*.*` tag is pushed.
+
+```bash
+# 1. Bump version in package.json (e.g. 0.3.0 → 0.3.1)
+# 2. Commit
+git commit -am "v0.3.1"
+
+# 3. Tag + push
+git tag v0.3.1
+git push origin main --tags
+```
+
+The workflow at [`.github/workflows/release.yml`](.github/workflows/release.yml) takes ~10 minutes. Auto-generated release notes are filled in from commit messages since the previous tag — edit them on the Release page after the run completes.
+
 ## Tech Stack
 
 - React 19 + TypeScript + Vite+
@@ -136,6 +182,10 @@ Create `.env.local` with `TOPDECK_API_KEY=your-key` to set a server-side fallbac
 - Scrollrack API (decklist validation)
 - TopDeck.gg API v2 (tournament data, proxied through server)
 - Electron + electron-builder (desktop distribution)
+
+## License
+
+[MIT](LICENSE) © eldrazi.dev — free to use, modify, and distribute. Keep the copyright notice in copies and substantial portions.
 
 ## Data provided by
 

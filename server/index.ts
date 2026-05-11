@@ -4,9 +4,10 @@ import { Server } from "socket.io";
 import cors from "cors";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { networkInterfaces } from "node:os";
 import fs from "node:fs/promises";
 import { RoomManager } from "./room.js";
-import type { NamePlate } from "../src/shared/types.js";
+import type { NamePlate, BrandSettings } from "../src/shared/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -15,6 +16,50 @@ const SAFE_PARAM = /^[a-zA-Z0-9_-]+$/;
 function sanitizeRoom(room: string): string {
   if (!SAFE_PARAM.test(room)) return "default";
   return room;
+}
+
+// Pick the best LAN IP for caster machines to connect to. Filters to RFC1918
+// private ranges so we don't accidentally surface a VPN/Tailscale/CGNAT/public
+// address. Skips known virtual-adapter name patterns (Docker bridges,
+// WireGuard, utun, vmnet, etc.) since those are usually not what a phone or
+// laptop on the same wifi can reach.
+function isPrivateIpv4(addr: string): boolean {
+  const parts = addr.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n))) return false;
+  const [a, b] = parts;
+  if (a === 192 && b === 168) return true;
+  if (a === 10) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  return false;
+}
+
+function rankPrivateIp(addr: string): number {
+  const [a, b] = addr.split(".").map(Number);
+  if (a === 192 && b === 168) return 0;
+  if (a === 10) return 1;
+  if (a === 172 && b >= 16 && b <= 31) return 2;
+  return 99;
+}
+
+const VIRTUAL_IFACE_PATTERN = /^(utun|awdl|llw|anpi|bridge|vmnet|vboxnet|docker|br-|veth|tun|tap|wg|tailscale|zt|ham|vEthernet|VMware|VirtualBox)/i;
+
+export function getLanIp(): string {
+  const nets = networkInterfaces();
+  const candidates: { addr: string; rank: number; virtual: boolean }[] = [];
+  for (const [name, ifaces] of Object.entries(nets)) {
+    const virtual = VIRTUAL_IFACE_PATTERN.test(name);
+    for (const net of ifaces ?? []) {
+      if (net.family !== "IPv4" || net.internal) continue;
+      if (!isPrivateIpv4(net.address)) continue;
+      candidates.push({ addr: net.address, rank: rankPrivateIp(net.address), virtual });
+    }
+  }
+  // Prefer physical adapters, then 192.168 > 10 > 172
+  candidates.sort((a, b) => {
+    if (a.virtual !== b.virtual) return a.virtual ? 1 : -1;
+    return a.rank - b.rank;
+  });
+  return candidates[0]?.addr ?? "localhost";
 }
 
 export interface ServerInstance {
@@ -75,6 +120,7 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
     cors: { origin: "*" },
   });
 
+  const PORT = Number(process.env.PORT || 3000);
   const rooms = new RoomManager();
 
   // ── TopDeck.gg API Proxy ──
@@ -106,6 +152,10 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
       }
     });
   }
+
+  app.get("/api/connection-info", (_req, res) => {
+    res.json({ lanIp: getLanIp(), port: PORT });
+  });
 
   // Let the client know if a server-side API key is configured
   app.get("/api/topdeck/has-key", (req, res) => {
@@ -181,6 +231,10 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
     if (streamStats) {
       socket.emit("streamStats:updated", streamStats);
     }
+    const brandSettings = rooms.getBrandSettings(room);
+    if (brandSettings) {
+      socket.emit("brand:updated", brandSettings);
+    }
 
     // ── Card lifecycle ──
 
@@ -215,6 +269,17 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
       }
     });
 
+    socket.on("card:flip", (data) => {
+      const { id } = data;
+      const result = rooms.flipCard(room, id);
+      if (result) {
+        io.to(room).emit("card:flipped", { id, flipped: result.card.flipped });
+        if (result.spotlight) {
+          io.to(room).emit("spotlight:updated", result.spotlight);
+        }
+      }
+    });
+
     // ── Spotlight ──
 
     socket.on("spotlight:show", (data) => {
@@ -229,6 +294,13 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
         io.to(room).emit("spotlight:updated", result.card);
       } else {
         io.to(room).emit("spotlight:cleared");
+      }
+    });
+
+    socket.on("spotlight:flip", () => {
+      const updated = rooms.flipSpotlight(room);
+      if (updated) {
+        io.to(room).emit("spotlight:updated", updated);
       }
     });
 
@@ -273,9 +345,24 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
       socket.to(room).emit("focusedCard:updated", data);
     });
 
+    socket.on("focusedCard:flip", () => {
+      const updated = rooms.flipFocusedCard(room);
+      if (updated) {
+        io.to(room).emit("focusedCard:updated", updated);
+      }
+    });
+
     socket.on("focusedCard:clear", () => {
       rooms.setFocusedCard(room, null);
       socket.to(room).emit("focusedCard:updated", null);
+    });
+
+    // ── Brand Settings ──
+
+    socket.on("brand:set", (data: BrandSettings | null) => {
+      if (role !== "control") return;
+      rooms.setBrandSettings(room, data);
+      io.to(room).emit("brand:updated", data);
     });
 
     // ── TopDeck Config (producer shares with room) ──
@@ -355,10 +442,10 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
 
   // ── Start ──
 
-  const PORT = Number(process.env.PORT || 3000);
   return new Promise((resolve) => {
     httpServer.listen(PORT, "0.0.0.0", () => {
       console.log(`Server listening on http://0.0.0.0:${PORT}`);
+      if (obsDir) writeObsFiles("default", rooms, obsDir);
       resolve({ httpServer, port: PORT });
     });
   });
