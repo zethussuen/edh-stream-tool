@@ -24,7 +24,7 @@ Download and launch **cEDH Stream Tool** on the producer's laptop. The app start
 
 Click the **URLs** button in the top-right of the producer panel to see connection links. The popover lists:
 - **Casters** for the caster workstations
-- **All Overlays** and the individual layer URLs (Spotlight, Player Names, Cards + Drawings, Decklist, Focused Card) for OBS Browser Sources
+- **All Overlays** and the individual layer URLs (Spotlight, Player Names, Cards + Drawings, Decklist, Pod Summary, Focused Card) for OBS Browser Sources
 
 Each row has a Copy button. Casters on other machines should use the LAN address (e.g. `http://192.168.1.50:3000/caster/`); OBS on the producer machine should use `localhost`.
 
@@ -50,9 +50,10 @@ Add overlay layers as **Browser Sources** in OBS (1920×1080, transparent backgr
 | Name Plates | `http://localhost:3000/nameplates/` | 1920×1080 | 4-corner player name plates |
 | Annotations | `http://localhost:3000/annotations/` | 1920×1080 | Cards on canvas + drawings |
 | Decklist | `http://localhost:3000/decklist/` | 1920×1080 | Player decklist (text view) |
+| Pod Summary | `http://localhost:3000/pod-summary/` | 1920×1080 | Pod intro scene (opaque, see below) |
 | Focused Card | `http://localhost:3000/focused-card/` | 672×936 | Single card graphic insert |
 
-All overlay URLs are fully transparent. Layer them over your game camera feed.
+Every layer except Pod Summary is fully transparent. **Pod Summary is opaque** — designed as a standalone "scene" rather than an overlay, brought up during mulligan downtime so casters can introduce the four players. Add it as its own OBS scene or as a toggleable Browser Source on a Stream Deck button.
 
 ### 4. (Optional) Live video feed for casters
 
@@ -95,6 +96,7 @@ Open `/caster/` on your laptop. From here you can:
 - **Filter decklists**: Scryfall-like syntax such as `t:instant mv<=2`, `o:"draw"`, `c:u`, `-t:land`, `(c:u or c:g)`. Group by section or type, sort by name or mana value.
 - **Show decklist on overlay**: after loading a player's deck, click "Show Decklist on Overlay" to push it to the `/decklist/` browser source.
 - **Set stream pod**: in the Tournament tab, click "Set as Stream Pod" on a table. Highlights those players in the Deck tab and renders name plates on the overlay. Each pod shows a status badge (`● Live` for active, `✓ Done` for completed, `Pending`/`Bye`) so you can see at a glance which tables are still playing.
+- **Show pod summary**: once a stream pod is set, click "Show Summary" to push the Pod Summary scene to the overlay — a 2×2 grid of player cards with commander art, seat #, name, and tournament stats (Rank, Record, Points, OW%). Designed for caster intros during mulligan downtime. Click "Hide Summary" to dismiss; unsetting the stream pod also clears it.
 
 Arrows auto-fade after about 8 seconds. Pen and circle drawings stay on screen until cleared with `X`, `Ctrl+Z`, or the clear button.
 

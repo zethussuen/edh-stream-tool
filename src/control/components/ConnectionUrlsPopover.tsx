@@ -20,6 +20,7 @@ function buildUrls(info: ConnectionInfo): UrlEntry[] {
     { label: "Player Names", url: `${lan}/nameplates/` },
     { label: "Cards + Drawings", url: `${lan}/annotations/` },
     { label: "Decklist", url: `${lan}/decklist/` },
+    { label: "Pod Summary", url: `${lan}/pod-summary/` },
     { label: "Focused Card", url: `${lan}/focused-card/` },
   ];
 }
