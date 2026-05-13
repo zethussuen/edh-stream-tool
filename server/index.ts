@@ -179,7 +179,7 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
 
     app.get("/", (_req, res) => res.redirect("/caster"));
 
-    for (const page of ["caster", "control", "overlay", "spotlight", "nameplates", "annotations", "decklist", "focused-card"]) {
+    for (const page of ["caster", "control", "overlay", "spotlight", "nameplates", "annotations", "decklist", "focused-card", "pod-summary"]) {
       const sendPage = (_req: express.Request, res: express.Response) => {
         res.sendFile(join(distDir, "src", page, "index.html"));
       };
@@ -234,6 +234,10 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
     const brandSettings = rooms.getBrandSettings(room);
     if (brandSettings) {
       socket.emit("brand:updated", brandSettings);
+    }
+    const podSummary = rooms.getPodSummary(room);
+    if (podSummary) {
+      socket.emit("podSummary:updated", podSummary);
     }
 
     // ── Card lifecycle ──
@@ -338,6 +342,11 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
     socket.on("decklist:set", (data) => {
       rooms.setDecklistOverlay(room, data);
       io.to(room).emit("decklist:updated", data);
+    });
+
+    socket.on("podSummary:set", (data) => {
+      rooms.setPodSummary(room, data);
+      io.to(room).emit("podSummary:updated", data);
     });
 
     socket.on("focusedCard:set", (data) => {

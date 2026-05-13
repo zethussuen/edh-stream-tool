@@ -1,8 +1,9 @@
-import type { NamePlate } from "@shared/types";
+import type { NamePlate, StreamPlayerStats } from "@shared/types";
 import { ManaCost } from "@shared/components/ManaCost";
 
 interface Props {
   plates: NamePlate[] | null;
+  stats?: StreamPlayerStats[] | null;
 }
 
 // Seat positions: 1=top-left, 2=top-right, 3=bottom-right, 4=bottom-left (clockwise)
@@ -36,6 +37,15 @@ const deckNameStyle: React.CSSProperties = {
   color: "var(--color-brand)",
 };
 
+const recordStyle: React.CSSProperties = {
+  fontFamily: '"JetBrains Mono", monospace',
+  fontSize: 12,
+  lineHeight: 1.2,
+  color: "#8a8678",
+  letterSpacing: "0.5px",
+  margin: "2px 0 0 0",
+};
+
 const panelBase: React.CSSProperties = {
   background: "rgba(0, 0, 0, 0.97)",
   padding: "10px 16px",
@@ -43,13 +53,14 @@ const panelBase: React.CSSProperties = {
   minWidth: 120,
 };
 
-export function NamePlates({ plates }: Props) {
+export function NamePlates({ plates, stats }: Props) {
   if (!plates || plates.length === 0) return null;
 
   return (
     <>
       {plates.slice(0, 4).map((plate, i) => {
         const pos = POSITIONS[i];
+        const s = stats?.[i];
         return (
           <div
             key={i}
@@ -87,6 +98,15 @@ export function NamePlates({ plates }: Props) {
                     <span style={deckNameStyle}>{plate.deckName}</span>
                   )}
                 </div>
+              )}
+              {s && (
+                <p style={recordStyle}>
+                  {s.standing != null && (
+                    <span style={{ color: "var(--color-brand)" }}>#{s.standing}</span>
+                  )}
+                  {s.standing != null && " · "}
+                  {s.wins}-{s.losses}-{s.draws}
+                </p>
               )}
             </div>
           </div>

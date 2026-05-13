@@ -17,14 +17,14 @@ function devRoutes(): Plugin {
           return;
         }
         // Redirect /caster to /caster/ so relative paths resolve correctly
-        const bare = url.match(/^\/(caster|control|overlay|spotlight|nameplates|annotations|decklist|focused-card)$/);
+        const bare = url.match(/^\/(caster|control|overlay|spotlight|nameplates|annotations|decklist|focused-card|pod-summary)$/);
         if (bare) {
           res.writeHead(302, { Location: `/${bare[1]}/` });
           res.end();
           return;
         }
         // Rewrite /caster/foo → /src/caster/foo (and same for other pages)
-        const match = url.match(/^\/(caster|control|overlay|spotlight|nameplates|annotations|decklist|focused-card)(\/.*)?$/);
+        const match = url.match(/^\/(caster|control|overlay|spotlight|nameplates|annotations|decklist|focused-card|pod-summary)(\/.*)?$/);
         if (match) {
           const page = match[1];
           const rest = match[2] || "";
@@ -62,6 +62,7 @@ export default defineConfig({
         annotations: resolve(__dirname, "src/annotations/index.html"),
         decklist: resolve(__dirname, "src/decklist/index.html"),
         "focused-card": resolve(__dirname, "src/focused-card/index.html"),
+        "pod-summary": resolve(__dirname, "src/pod-summary/index.html"),
       },
     },
   },

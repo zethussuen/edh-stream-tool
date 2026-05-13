@@ -200,6 +200,25 @@ export interface TopDeckPlayer {
   > | null;
 }
 
+// Response shape of GET /v2/tournaments/{TID}/players/{ID}.
+// Distinct from TopDeckPlayer (which is the pairing entry inside rounds/tables)
+// because the detail endpoint returns game-level records and a standing.
+export interface TopDeckPlayerDetail {
+  name: string;
+  standing: number;
+  decklist: string | null;
+  deckObj: Record<
+    string,
+    Record<string, { id: string; count: number }>
+  > | null;
+  winRate: number;
+  gamesPlayed: number;
+  gamesWon: number;
+  gamesDrawn: number;
+  gamesLost: number;
+  byes: number;
+}
+
 // ── Focused Card ──
 
 export interface FocusedCardData {
@@ -244,6 +263,29 @@ export interface NamePlate {
   name: string;
   deckName: string | null;
   colorIdentity: string[];
+}
+
+// ── Pod Summary ──
+
+export interface PodSummaryPlayer {
+  name: string;
+  commanderName: string | null;
+  // Front-face card image URLs for the player's commanders, capped at 2.
+  // First entry is the primary commander, second is the partner if any.
+  commanderImages: string[];
+  colorIdentity: string[];
+  standing: number | null;
+  points: number | null;
+  wins: number;
+  losses: number;
+  draws: number;
+  opponentWinRate: number | null;
+}
+
+export interface PodSummaryData {
+  tournamentName: string;
+  round: number | string | null;
+  players: PodSummaryPlayer[];
 }
 
 // ── Brand Settings ──

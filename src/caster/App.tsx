@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DrawTool, TopDeckConfig, TopDeckTable, NamePlate, FocusedCardData, StreamPlayerStats, DecklistOverlayData } from "@shared/types";
+import type { DrawTool, TopDeckConfig, TopDeckTable, NamePlate, FocusedCardData, StreamPlayerStats, DecklistOverlayData, PodSummaryData } from "@shared/types";
 import { DRAW_COLORS, DRAW_WIDTHS, OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
 import { useBrandSettings } from "@shared/brand";
 import { useRoom, useSocket, getRoom } from "@shared/socket";
@@ -51,6 +51,20 @@ export function App() {
     s.on("decklist:updated", handler);
     return () => { s.off("decklist:updated", handler); };
   }, [socket]);
+
+  // Active pod summary on overlay
+  const [podSummary, setPodSummary] = useState<PodSummaryData | null>(null);
+  useEffect(() => {
+    const s = socket.current;
+    if (!s) return;
+    const handler = (data: PodSummaryData | null) => setPodSummary(data);
+    s.on("podSummary:updated", handler);
+    return () => { s.off("podSummary:updated", handler); };
+  }, [socket]);
+  const handleSetPodSummary = useCallback((data: PodSummaryData | null) => {
+    setPodSummary(data);
+    emit("podSummary:set", data);
+  }, [emit]);
 
   // Receive stream table changes from other clients
   useEffect(() => {
@@ -225,6 +239,8 @@ export function App() {
         setStreamTable={setStreamTable}
         searchInputRef={searchInputRef}
         activeDecklist={activeDecklist}
+        podSummaryActive={podSummary != null}
+        onSetPodSummary={handleSetPodSummary}
       />
 
       {/* Preview Canvas */}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { TopDeckConfig, TopDeckStanding, TopDeckRound, TopDeckTable, TopDeckAttendee, NamePlate, StreamPlayerStats } from "@shared/types";
+import type { TopDeckConfig, TopDeckStanding, TopDeckRound, TopDeckTable, TopDeckAttendee, NamePlate, StreamPlayerStats, PodSummaryData, PodSummaryPlayer, ScryfallCard } from "@shared/types";
 import * as topdeck from "@shared/topdeck";
 import * as scryfall from "@shared/scryfall";
 import { getCommanderLabel } from "@shared/cards";
@@ -10,9 +10,11 @@ interface Props {
   streamTable: TopDeckTable | null;
   onSetStreamTable: (table: TopDeckTable | null, plates: NamePlate[] | null, round?: number | string, tournamentName?: string, stats?: StreamPlayerStats[] | null) => void;
   onSelectPlayer: (playerId: string) => void;
+  podSummaryActive: boolean;
+  onSetPodSummary: (data: PodSummaryData | null) => void;
 }
 
-export function TournamentPanel({ config, hasServerKey, streamTable, onSetStreamTable, onSelectPlayer }: Props) {
+export function TournamentPanel({ config, hasServerKey, streamTable, onSetStreamTable, onSelectPlayer, podSummaryActive, onSetPodSummary }: Props) {
   const [standings, setStandings] = useState<TopDeckStanding[]>([]);
   const [attendees, setAttendees] = useState<TopDeckAttendee[]>([]);
   const [currentRound, setCurrentRound] = useState<TopDeckRound | null>(null);
@@ -56,49 +58,92 @@ export function TournamentPanel({ config, hasServerKey, streamTable, onSetStream
     return commanderData.idsByName.get(playerName.toLowerCase()) ?? [];
   }
 
-  async function buildNamePlates(table: TopDeckTable): Promise<NamePlate[]> {
+  async function getCommanderCardsForTable(table: TopDeckTable): Promise<Map<string, ScryfallCard>> {
     const players = table.players ?? [];
-
-    // Collect all commander oracle IDs for this table's players
     const allOracleIds: string[] = [];
     for (const p of players) {
       allOracleIds.push(...lookupCommanderIds(p.id, p.name));
     }
-
-    // Batch fetch color identities from Scryfall
-    let cardMap = new Map<string, { colorIdentity: string[] }>();
-    if (allOracleIds.length > 0) {
-      try {
-        const fetched = await scryfall.getCollection(allOracleIds);
-        cardMap = fetched as Map<string, { colorIdentity: string[] }>;
-      } catch {
-        // Fall back to no color identity
-      }
+    if (allOracleIds.length === 0) return new Map();
+    try {
+      return await scryfall.getCollection(allOracleIds);
+    } catch {
+      return new Map();
     }
+  }
 
-    return players.map((p) => {
-      const oracleIds = lookupCommanderIds(p.id, p.name);
-      // Merge color identities from all commanders (partners)
-      const colorSet = new Set<string>();
-      for (const oid of oracleIds) {
-        const card = cardMap.get(oid);
-        if (card) {
-          for (const c of card.colorIdentity) colorSet.add(c);
-        }
-      }
-      // Sort in WUBRG order
-      const wubrg = ["W", "U", "B", "R", "G"];
-      const colorIdentity = wubrg.filter((c) => colorSet.has(c));
-      if (colorIdentity.length === 0 && oracleIds.length > 0) {
-        colorIdentity.push("C"); // colorless
-      }
+  function mergedColorIdentity(playerId: string | null, playerName: string, cardMap: Map<string, ScryfallCard>): string[] {
+    const oracleIds = lookupCommanderIds(playerId, playerName);
+    const colorSet = new Set<string>();
+    for (const oid of oracleIds) {
+      const card = cardMap.get(oid);
+      if (card) for (const c of card.colorIdentity) colorSet.add(c);
+    }
+    const wubrg = ["W", "U", "B", "R", "G"];
+    const colorIdentity = wubrg.filter((c) => colorSet.has(c));
+    if (colorIdentity.length === 0 && oracleIds.length > 0) colorIdentity.push("C");
+    return colorIdentity;
+  }
 
+  // Front-face image URLs for a player's commanders, in deckObj order (primary
+  // commander first, partner second). Capped at 2.
+  function commanderImagesFor(playerId: string | null, playerName: string, cardMap: Map<string, ScryfallCard>): string[] {
+    return lookupCommanderIds(playerId, playerName)
+      .map((id) => cardMap.get(id)?.imageUri)
+      .filter((u): u is string => typeof u === "string" && u.length > 0)
+      .slice(0, 2);
+  }
+
+  async function buildPodSummary(table: TopDeckTable): Promise<PodSummaryData> {
+    if (!config) throw new Error("No TopDeck config");
+    const tablePlayers = table.players ?? [];
+    // Fan out the Scryfall commander batch + per-player W-L-D (from the
+    // player-detail endpoint) in parallel. Failed player-detail fetches
+    // become null, which `recordFromPlayerDetail` falls back to 0-0-0.
+    const [cardMap, detailByPlayer] = await Promise.all([
+      getCommanderCardsForTable(table),
+      Promise.all(
+        tablePlayers.map(async (p) => {
+          if (!p.id) return null;
+          try {
+            return await topdeck.getPlayer(config, p.id);
+          } catch {
+            return null;
+          }
+        }),
+      ),
+    ]);
+
+    const players: PodSummaryPlayer[] = tablePlayers.map((p, i) => {
+      const s = standings.find((st) => st.id === p.id || st.name === p.name);
+      const record = topdeck.recordFromPlayerDetail(detailByPlayer[i]);
       return {
         name: p.name,
-        deckName: lookupCommander(p.id, p.name),
-        colorIdentity,
+        commanderName: lookupCommander(p.id, p.name),
+        commanderImages: commanderImagesFor(p.id, p.name, cardMap),
+        colorIdentity: mergedColorIdentity(p.id, p.name, cardMap),
+        standing: s?.standing ?? null,
+        points: s?.points ?? null,
+        wins: record.wins,
+        losses: record.losses,
+        draws: record.draws,
+        opponentWinRate: s?.opponentWinRate ?? null,
       };
     });
+    return {
+      tournamentName,
+      round: currentRound?.round ?? null,
+      players,
+    };
+  }
+
+  async function buildNamePlates(table: TopDeckTable): Promise<NamePlate[]> {
+    const cardMap = await getCommanderCardsForTable(table);
+    return (table.players ?? []).map((p) => ({
+      name: p.name,
+      deckName: lookupCommander(p.id, p.name),
+      colorIdentity: mergedColorIdentity(p.id, p.name, cardMap),
+    }));
   }
 
   function lookupCommander(id: string | null, name: string): string | null {
@@ -190,47 +235,82 @@ export function TournamentPanel({ config, hasServerKey, streamTable, onSetStream
                     : "bg-bg-surface"
                 }`}
               >
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-[10px] text-text-muted flex items-center gap-1.5">
-                    <span>Table {table.table}</span>
-                    <StatusBadge status={table.status} />
+                <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                  <span className="text-[10px] text-text-muted whitespace-nowrap">Table {table.table}</span>
+                  <StatusBadge status={table.status} />
+                  {isStream && (
+                    <span className="text-brand text-[10px] font-medium whitespace-nowrap">Stream Pod</span>
+                  )}
+                </div>
+                {table.table !== "Byes" && (
+                  <div className="flex items-center gap-1 mb-1.5">
                     {isStream && (
-                      <span className="text-brand font-medium">Stream Pod</span>
+                      <button
+                        onClick={async () => {
+                          if (podSummaryActive) {
+                            onSetPodSummary(null);
+                          } else {
+                            try {
+                              const summary = await buildPodSummary(table);
+                              onSetPodSummary(summary);
+                            } catch (e) {
+                              setError(e instanceof Error ? e.message : "Failed to build pod summary");
+                            }
+                          }
+                        }}
+                        className={`text-[10px] px-2 py-0.5 rounded transition-colors whitespace-nowrap ${
+                          podSummaryActive
+                            ? "bg-status-green/25 text-status-green hover:bg-status-green/40"
+                            : "bg-gold/15 text-brand hover:bg-gold/30"
+                        }`}
+                      >
+                        {podSummaryActive ? "Hide Summary" : "Show Summary"}
+                      </button>
                     )}
-                  </p>
-                  {table.table !== "Byes" && (
                     <button
                       onClick={async () => {
                         if (isStream) {
                           onSetStreamTable(null, null);
+                          if (podSummaryActive) onSetPodSummary(null);
                         } else {
                           try {
-                            const plates = await buildNamePlates(table);
-                            const stats: StreamPlayerStats[] = table.players.map((p) => {
+                            if (!config) throw new Error("No TopDeck config");
+                            const [plates, detailByPlayer] = await Promise.all([
+                              buildNamePlates(table),
+                              Promise.all(
+                                table.players.map(async (p) => {
+                                  if (!p.id) return null;
+                                  try { return await topdeck.getPlayer(config, p.id); }
+                                  catch { return null; }
+                                }),
+                              ),
+                            ]);
+                            const stats: StreamPlayerStats[] = table.players.map((p, i) => {
                               const s = standings.find((st) => st.id === p.id || st.name === p.name);
+                              const record = topdeck.recordFromPlayerDetail(detailByPlayer[i]);
                               return {
-                                standing: s?.standing ?? null,
-                                wins: s?.wins ?? 0,
-                                losses: s?.losses ?? 0,
-                                draws: s?.draws ?? 0,
-                              };
-                            });
-                            onSetStreamTable(table, plates, currentRound?.round, tournamentName, stats);
-                          } catch (e) {
-                            setError(e instanceof Error ? e.message : "Failed to set stream pod");
+                                  standing: s?.standing ?? null,
+                                  wins: record.wins,
+                                  losses: record.losses,
+                                  draws: record.draws,
+                                };
+                              });
+                              onSetStreamTable(table, plates, currentRound?.round, tournamentName, stats);
+                            } catch (e) {
+                              setError(e instanceof Error ? e.message : "Failed to set stream pod");
+                            }
                           }
-                        }
-                      }}
-                      className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-                        isStream
-                          ? "bg-gold/20 text-brand hover:bg-gold/30"
-                          : "text-text-muted hover:text-brand hover:bg-bg-overlay"
-                      }`}
-                    >
-                      {isStream ? "Unset Stream Pod" : "Set as Stream Pod"}
-                    </button>
+                        }}
+                        className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+                          isStream
+                            ? "bg-gold/20 text-brand hover:bg-gold/30"
+                            : "text-text-muted hover:text-brand hover:bg-bg-overlay"
+                        }`}
+                      >
+                        {isStream ? "Unset Stream Pod" : "Set as Stream Pod"}
+                      </button>
+                    </div>
                   )}
-                </div>
                 <div className="flex flex-col gap-0.5">
                   {(table.players ?? []).map((p) => {
                     const cmdr = lookupCommander(p.id, p.name);
@@ -306,7 +386,7 @@ function StatusBadge({ status }: { status: TopDeckTable["status"] }) {
     Bye: "Bye",
   };
   return (
-    <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium uppercase tracking-wider leading-none ${styles[status]}`}>
+    <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium uppercase tracking-wider leading-none whitespace-nowrap inline-block ${styles[status]}`}>
       {label[status]}
     </span>
   );

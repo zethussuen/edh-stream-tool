@@ -1,10 +1,14 @@
+// Browser-side TopDeck.gg client. Requests go to our own Express proxy at
+// `/api/topdeck/*` rather than `https://topdeck.gg/api` directly so the
+// API key stays server-side and never appears in the browser's network tab.
+
 import type {
   TopDeckConfig,
   TopDeckTournament,
   TopDeckStanding,
   TopDeckRound,
   TopDeckTable,
-  TopDeckPlayer,
+  TopDeckPlayerDetail,
   TopDeckAttendee,
 } from "./types";
 
@@ -25,6 +29,9 @@ async function post<T>(
 }
 
 // ── Cache ──
+// Responses are persisted to localStorage so a page reload doesn't burn a
+// fresh API call. There's no automatic expiry — the user pulls fresh data
+// via the "Pull Latest" button, which calls through with forceRefresh=true.
 
 interface CacheEntry<T> {
   data: T;
@@ -53,7 +60,9 @@ function writeCache<T>(tid: string, endpoint: string, data: T): CacheEntry<T> {
   try {
     localStorage.setItem(cacheKey(tid, endpoint), JSON.stringify(entry));
   } catch {
-    // localStorage full or unavailable — cache in memory only
+    // localStorage full / disabled / private-mode quota exceeded — swallow
+    // and return the entry anyway so the caller still gets fresh data this
+    // session. We just lose the persistence benefit until the user clears.
   }
   return entry;
 }
@@ -115,6 +124,9 @@ export async function getStandings(
   );
 }
 
+// TopDeck's `/rounds/latest` returns just the tables — no round number. We
+// fan out to `/rounds` in parallel to grab the round label from the last
+// entry and synthesize a complete TopDeckRound object for the UI.
 export async function getLatestRound(
   config: TopDeckConfig,
   forceRefresh = false,
@@ -133,7 +145,7 @@ export async function getLatestRound(
 export async function getPlayer(
   config: TopDeckConfig,
   playerId: string,
-): Promise<TopDeckPlayer> {
+): Promise<TopDeckPlayerDetail> {
   return post("/player", {
     apiKey: config.apiKey,
     tid: config.tournamentId,
@@ -166,6 +178,22 @@ export function clearCache(tid: string): void {
     }
   }
   keysToRemove.forEach((k) => localStorage.removeItem(k));
+}
+
+/**
+ * Map a player-detail response to match-level W-L-D. In cEDH a match is one
+ * game (no best-of-3), so `gamesWon`/`gamesLost`/`gamesDrawn` are the match
+ * record. The standings endpoint's wins/losses are unreliable mid-tournament
+ * (Swiss vs bracket phase quirks), so prefer this when you need the record.
+ */
+export function recordFromPlayerDetail(
+  detail: TopDeckPlayerDetail | null | undefined,
+): { wins: number; losses: number; draws: number } {
+  return {
+    wins: detail?.gamesWon ?? 0,
+    losses: detail?.gamesLost ?? 0,
+    draws: detail?.gamesDrawn ?? 0,
+  };
 }
 
 /** Format a fetchedAt timestamp as a human-readable relative string. */

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { TopDeckConfig, TopDeckTable, NamePlate, FocusedCardData, StreamPlayerStats, BrandSettings, DecklistOverlayData } from "@shared/types";
+import type { TopDeckConfig, TopDeckTable, NamePlate, FocusedCardData, StreamPlayerStats, BrandSettings, DecklistOverlayData, PodSummaryData } from "@shared/types";
 import { OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
 import { applyBrandSettings, readCachedBrandSettings, useBrandSettings } from "@shared/brand";
 import { useRoom, useSocket, getRoom } from "@shared/socket";
@@ -62,6 +62,19 @@ export function App() {
     s.on("decklist:updated", handler);
     return () => { s.off("decklist:updated", handler); };
   }, [socket]);
+
+  const [podSummary, setPodSummary] = useState<PodSummaryData | null>(null);
+  useEffect(() => {
+    const s = socket.current;
+    if (!s) return;
+    const handler = (data: PodSummaryData | null) => setPodSummary(data);
+    s.on("podSummary:updated", handler);
+    return () => { s.off("podSummary:updated", handler); };
+  }, [socket]);
+  const handleSetPodSummary = useCallback((data: PodSummaryData | null) => {
+    setPodSummary(data);
+    emit("podSummary:set", data);
+  }, [emit]);
   const room = getRoom();
   const [topDeckConfig, setTopDeckConfigLocal] = useState<TopDeckConfig | null>(
     () => {
@@ -289,6 +302,8 @@ export function App() {
         setStreamTable={setStreamTable}
         searchInputRef={searchInputRef}
         activeDecklist={activeDecklist}
+        podSummaryActive={podSummary != null}
+        onSetPodSummary={handleSetPodSummary}
       />
 
       {/* Canvas (no draw layer) */}
