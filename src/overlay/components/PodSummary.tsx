@@ -219,7 +219,7 @@ export function PodSummary({ data }: Props) {
         inset: 0,
         zIndex: 9400,
         background:
-          "linear-gradient(135deg, rgba(9,9,11,0.97), rgba(20,20,28,0.97))",
+          "linear-gradient(135deg, #09090b, #14141c)",
         padding: "56px 72px",
         display: "flex",
         flexDirection: "column",

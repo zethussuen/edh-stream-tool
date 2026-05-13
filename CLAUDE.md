@@ -8,7 +8,7 @@ A real-time, multi-operator stream overlay tool for casting competitive EDH (cED
 
 - **Casters (2)**: At the stream table with their own laptops. Open `/caster` in a browser. They search for cards, place/move them on the overlay, draw annotations, and trigger spotlight mode. They watch the game and commentate — the tool needs to be fast and low-friction.
 - **Producer (1)**: At the streaming PC running OBS with a Stream Deck. Opens `/control` in a browser for overlay management (clear cards, reposition, override anything casters do). Has final authority over what's on screen.
-- **OBS Overlay**: The producer's OBS loads overlay browser sources (1920×1080, transparent) layered over the game camera feed. Available as a single combined source (`/overlay`) or individual layers (`/spotlight`, `/nameplates`, `/annotations`, `/decklist`) for independent z-ordering and visibility control in OBS. `/focused-card` is a 672×936 insert source for single-card display.
+- **OBS Overlay**: The producer's OBS loads overlay browser sources (1920×1080, transparent) layered over the game camera feed. Available as a single combined source (`/overlay`) or individual layers (`/spotlight`, `/nameplates`, `/annotations`, `/decklist`, `/pod-summary`) for independent z-ordering and visibility control in OBS. `/focused-card` is a 672×936 insert source for single-card display. The pod-summary layer is fully opaque (a "scene", not an overlay) — meant to be brought up during mulligan downtime so casters can introduce the four players.
 
 ## Tech Stack
 
@@ -111,7 +111,11 @@ cedh-stream-tool/
 │   │   ├── index.html
 │   │   ├── main.tsx
 │   │   └── App.tsx
-│   └── focused-card/               # Standalone 672×936 card insert overlay (/focused-card)
+│   ├── focused-card/               # Standalone 672×936 card insert overlay (/focused-card)
+│   │   ├── index.html
+│   │   ├── main.tsx
+│   │   └── App.tsx
+│   └── pod-summary/                # Standalone opaque pod intro scene (/pod-summary)
 │       ├── index.html
 │       ├── main.tsx
 │       └── App.tsx
@@ -122,9 +126,9 @@ cedh-stream-tool/
 └── release/                        # electron-builder output (gitignored)
 ```
 
-This is a **multi-page Vite app**. Each route (`/caster`, `/control`, `/overlay`, `/spotlight`, `/nameplates`, `/annotations`, `/decklist`, `/focused-card`) is a separate entry point with its own `index.html` and React root. Configure via `build.rollupOptions.input` in `vite.config.ts`. They share code from `src/shared/` and `src/components/ui/`.
+This is a **multi-page Vite app**. Each route (`/caster`, `/control`, `/overlay`, `/spotlight`, `/nameplates`, `/annotations`, `/decklist`, `/focused-card`, `/pod-summary`) is a separate entry point with its own `index.html` and React root. Configure via `build.rollupOptions.input` in `vite.config.ts`. They share code from `src/shared/` and `src/components/ui/`.
 
-The overlay is available as a single combined source (`/overlay`) or as individual layers (`/spotlight`, `/nameplates`, `/annotations`, `/decklist`) for finer OBS control. `/focused-card` is a 672×936 insert (not 1920×1080) used as a card graphic source. The standalone overlays import components from `src/overlay/components/` — those remain the single source of truth for overlay rendering.
+The overlay is available as a single combined source (`/overlay`) or as individual layers (`/spotlight`, `/nameplates`, `/annotations`, `/decklist`, `/pod-summary`) for finer OBS control. `/focused-card` is a 672×936 insert (not 1920×1080) used as a card graphic source. The standalone overlays import components from `src/overlay/components/` — those remain the single source of truth for overlay rendering.
 
 ## Shared Types (`src/shared/types.ts`)
 
@@ -271,6 +275,11 @@ export interface DecklistOverlayData {
 |---|---|---|
 | `decklist:set` | `decklist:updated` | `DecklistOverlayData \| null` |
 
+### Pod Summary
+| Client → Server | Server → All | Payload |
+|---|---|---|
+| `podSummary:set` | `podSummary:updated` | `PodSummaryData \| null` |
+
 ### Focused Card
 | Client → Server | Server → All | Payload |
 |---|---|---|
@@ -283,7 +292,7 @@ export interface DecklistOverlayData {
 | `cards:clearAll` | `state:full` (empty state) | (none) |
 
 ### On Connect
-Server sends `state:full` with current `RoomState`, plus `streamTable:updated`, `namePlates:updated`, `decklist:updated`, and `focusedCard:updated` if set. Also sends `feed:available` with the active producer's socket ID if a video feed is live.
+Server sends `state:full` with current `RoomState`, plus `streamTable:updated`, `namePlates:updated`, `decklist:updated`, `podSummary:updated`, and `focusedCard:updated` if set. Also sends `feed:available` with the active producer's socket ID if a video feed is live.
 
 Connection query params: `{ room: string, role: 'caster' | 'control' | 'overlay' }`.
 
@@ -309,6 +318,7 @@ Routes in production:
 - `GET /annotations/*` → `dist/src/annotations/index.html`
 - `GET /decklist/*` → `dist/src/decklist/index.html`
 - `GET /focused-card/*` → `dist/src/focused-card/index.html`
+- `GET /pod-summary/*` → `dist/src/pod-summary/index.html`
 - `POST /api/topdeck/*` → proxy to TopDeck.gg API (see TopDeck.gg section below)
 
 In development, Vite+ dev server handles the frontend and the Express server runs alongside (use `concurrently`).
@@ -471,7 +481,7 @@ OBS browser sources. Must be lightweight and performant. All use viewport 1920×
 
 ### Combined Overlay (`/overlay`)
 
-Renders all layers in a single browser source — cards, drawings, spotlight, and name plates. Good for simple OBS setups.
+Renders all layers in a single browser source — cards, drawings, spotlight, name plates, decklist, and pod summary. Good for simple OBS setups.
 
 ### Standalone Overlay Layers
 
@@ -483,12 +493,24 @@ For advanced OBS setups, each layer is available as a separate browser source. T
 | `/nameplates` | Name Plates | 4-corner player name plates only |
 | `/annotations` | Annotations | Cards on canvas + drawing annotations (no spotlight, no name plates) |
 | `/decklist` | Decklist | Full-screen player decklist: name, commander, cards in 3 columns with mana symbols |
+| `/pod-summary` | Pod Summary | Full-screen opaque pod intro scene: 2×2 grid of player cards with commander art, seat #, name, and tournament stats |
 
 All standalone overlays connect with role `"overlay"` and share the same room state. They import components from `src/overlay/components/`.
 
 ### Focused Card Overlay (`/focused-card`)
 
 A 672×936 insert (not 1920×1080) used as a separate OBS Browser Source for a clean single-card graphic. Listens to `focusedCard:updated` and shows the card image with a subtle fade-scale enter/exit animation (0.3s). Has no UI chrome. Casters trigger it via the picture-frame icon in SearchPanel or DecklistPanel; cleared via the icon in BottomStrip. Server persists the focused card so newly connecting clients get the current state.
+
+### Pod Summary Overlay (`/pod-summary`)
+
+Designed as a **scene, not an overlay** — fully opaque dark-gradient background (no transparency to the game feed). Meant to be brought up by the producer during mulligan downtime (~3-10 min window before a game starts) so casters can introduce the four players to viewers, then dismissed when play resumes. Producer typically wires it as its own OBS scene or as a toggleable browser source on a Stream Deck button.
+
+Layout: 2×2 grid of player cards with seats arranged clockwise (1=TL, 2=TR, 3=BR, 4=BL) to match the nameplate convention. Each card shows:
+- **Commander stack** on the left — up to 2 cards (primary commander on top, partner rotated behind and offset)
+- **Identity** — eyebrow row (Seat N + commander name + color pips) above a large Bebas Neue player name
+- **Stats row** at the bottom — Rank, Record, Points, OW% (pulled from the standings entry and the player-detail endpoint)
+
+Triggered from the caster Tournament panel via a "Show Summary" / "Hide Summary" button that only appears once a Stream Pod has been set. State is server-persisted via `podSummary:set` → `podSummary:updated`; clearing the stream pod also clears the pod summary.
 
 ### Overlay Component Details
 
@@ -497,6 +519,7 @@ A 672×936 insert (not 1920×1080) used as a separate OBS Browser Source for a c
 - **Drawing layer**: Same render loop as caster — receives `draw:stroke` events via Socket.IO, renders with identical auto-fade timing (6s delay, 2s fade).
 - **Name plates**: When a stream pod is set, 4 player name plates render in the corners (TL=seat 1, TR=seat 2, BR=seat 3, BL=seat 4 clockwise). Each shows player name (Bebas Neue, 28px), commander name + color identity mana symbols. Plates hug corners with no margin, inner corner rounded. Near-opaque dark backdrop.
 - **Decklist overlay**: Full 1920×1080, near-opaque dark gradient backdrop. Player name (Bebas Neue, 36px), commander name (gold, 16px), then 99 cards grouped in 3 CSS columns with `columnFill: "auto"`. Each card row shows quantity, name, and inline mana cost SVGs. Triggered by "Show Decklist on Overlay" button in DecklistPanel; cleared by sending `decklist:set` with null (no dedicated clear button yet).
+- **Pod summary overlay**: Full 1920×1080, opaque dark gradient (z-index 9400 — above spotlight, below decklist). Each player card is a flex column: identity block on top (commander stack + Seat/commander eyebrow + large name) and a bordered stats row at the bottom. Commander images use Scryfall's `imageUri` (normal 488×680). Match-level W-L-D comes from the `gamesWon/gamesLost/gamesDrawn` fields of `/v2/tournaments/{TID}/players/{ID}` (cEDH is single-game so those map directly).
 
 ## Design System
 
@@ -563,7 +586,7 @@ App version is defined in `package.json` `"version"` and injected at build time 
 
 ## Vite Config Notes
 
-- Multi-page app: configure `build.rollupOptions.input` with all entries (caster, control, overlay, spotlight, nameplates, annotations, decklist, focused-card)
+- Multi-page app: configure `build.rollupOptions.input` with all entries (caster, control, overlay, spotlight, nameplates, annotations, decklist, focused-card, pod-summary)
 - Each entry has its own `index.html` in `src/caster/`, `src/control/`, `src/overlay/`
 - Shared code in `src/shared/` and `src/components/` is tree-shaken per entry
 - The overlay bundle should be kept as small as possible — it runs in OBS's embedded Chromium
@@ -752,11 +775,12 @@ The active feed producer's socket ID is stored in `RoomData.feedProducerId`. Cli
 
 ## Implemented Features (v0.1.7)
 
+- **Pod summary overlay** (`/pod-summary`) — Full-screen opaque "scene" overlay (2×2 player grid with commander art, seat #, name, and tournament stats) intended for caster intros during mulligan downtime. Toggled from the Tournament tab's "Show Summary" / "Hide Summary" button when a stream pod is set. Match record sourced from `/v2/tournaments/{TID}/players/{ID}` (`gamesWon/gamesLost/gamesDrawn`) since the standings endpoint's W-L-D is unreliable mid-tournament across Swiss/bracket phases.
 - **Focused card overlay** (`/focused-card`) — Standalone 672×936 browser source for a clean single-card graphic insert. Triggered from search results or decklist via the picture-frame icon. Persisted in server state; cleared from BottomStrip.
 - **Feed producer persistence** — WebRTC feed producer socket ID stored in room state so late-joining clients get `feed:available` immediately and can initiate the WebRTC handshake.
 - **Decklist overlay** (`/decklist`) — Full-screen text-based decklist: player name, commander, 99 cards in 3 CSS columns with mana symbol SVGs. Pushed from DecklistPanel's "Show Decklist on Overlay" button.
 - **Moxfield-style text view** — Decklist grouped by card type with mana cost display (v0.1.6).
-- **Standalone overlay layers** — Overlay split into independent browser sources (`/spotlight`, `/nameplates`, `/annotations`, `/decklist`) for granular OBS control. Combined `/overlay` still available.
+- **Standalone overlay layers** — Overlay split into independent browser sources (`/spotlight`, `/nameplates`, `/annotations`, `/decklist`, `/pod-summary`) for granular OBS control. Combined `/overlay` still available.
 - **Player name plates** — 4-corner overlay name plates with player name, commander name, and color identity mana symbols. Synced via Socket.IO when stream pod is selected.
 - **Live video feed** — Producer captures OBS Virtual Camera via browser `getUserMedia`, streams to casters via WebRTC using Socket.IO signaling. No external infrastructure.
 - **Annotation fade toggle** — Toolbar button to toggle auto-fade on/off. When off, drawings persist until manually cleared.
