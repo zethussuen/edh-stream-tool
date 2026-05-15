@@ -24,7 +24,7 @@ Download and launch **cEDH Stream Tool** on the producer's laptop. The app start
 
 Click the **URLs** button in the top-right of the producer panel to see connection links. The popover lists:
 - **Casters** for the caster workstations
-- **All Overlays** and the individual layer URLs (Spotlight, Player Names, Cards + Drawings, Decklist, Pod Summary, Focused Card) for OBS Browser Sources
+- **All Overlays** and the individual layer URLs (Spotlight, Player Names, Cards + Drawings, Decklist, Pod Summary, Player Spotlight, Focused Card) for OBS Browser Sources
 
 Each row has a Copy button. Casters on other machines should use the LAN address (e.g. `http://192.168.1.50:3000/caster/`); OBS on the producer machine should use `localhost`.
 
@@ -51,9 +51,10 @@ Add overlay layers as **Browser Sources** in OBS (1920×1080, transparent backgr
 | Annotations | `http://localhost:3000/annotations/` | 1920×1080 | Cards on canvas + drawings |
 | Decklist | `http://localhost:3000/decklist/` | 1920×1080 | Player decklist (text view) |
 | Pod Summary | `http://localhost:3000/pod-summary/` | 1920×1080 | Pod intro scene (opaque, see below) |
+| Player Spotlight | `http://localhost:3000/player-spotlight/` | 1920×1080 | Single-player profile scene (opaque, see below) |
 | Focused Card | `http://localhost:3000/focused-card/` | 672×936 | Single card graphic insert |
 
-Every layer except Pod Summary is fully transparent. **Pod Summary is opaque** — designed as a standalone "scene" rather than an overlay, brought up during mulligan downtime so casters can introduce the four players. Add it as its own OBS scene or as a toggleable Browser Source on a Stream Deck button.
+Every layer except Pod Summary and Player Spotlight is fully transparent. **Pod Summary and Player Spotlight are opaque** — designed as standalone "scenes" rather than overlays. Pod Summary is brought up during mulligan downtime so casters can introduce the four players. Player Spotlight focuses on a single player's lifetime stats (1st places, Top 4, Top 16, win rate, tournament history) and current-tournament performance. Add each as its own OBS scene or as a toggleable Browser Source on a Stream Deck button.
 
 ### 4. (Optional) Live video feed for casters
 
@@ -97,12 +98,14 @@ Open `/caster/` on your laptop. From here you can:
 - **Show decklist on overlay**: after loading a player's deck, click "Show Decklist on Overlay" to push it to the `/decklist/` browser source.
 - **Set stream pod**: in the Tournament tab, click "Set as Stream Pod" on a table. Highlights those players in the Deck tab and renders name plates on the overlay. Each pod shows a status badge (`● Live` for active, `✓ Done` for completed, `Pending`/`Bye`) so you can see at a glance which tables are still playing.
 - **Show pod summary**: once a stream pod is set, click "Show Summary" to push the Pod Summary scene to the overlay — a 2×2 grid of player cards with commander art, seat #, name, and tournament stats (Rank, Record, Points, OW%). Designed for caster intros during mulligan downtime. Click "Hide Summary" to dismiss; unsetting the stream pod also clears it.
+- **Spotlight a player**: click the ID-card icon next to any player (in the Tournament or Deck tab) to push the Player Spotlight scene to the overlay — commander art, current-tournament rank/record/win rate, lifetime stats (1st places, Top 4, Top 16, win rate), and a scrolling list of top finishes pulled from their TopDeck profile. Click the icon again on the same player to clear, or use the toolbar's **Clear → Player spotlight** button.
+- **Clear overlay state**: the toolbar's `CLEAR` section has individual buttons for Drawings, Cards, Card spotlight, Pod spotlight, Player spotlight, and All. Each highlights in gold when the corresponding overlay is active.
 
 Arrows auto-fade after about 8 seconds. Pen and circle drawings stay on screen until cleared with `X`, `Ctrl+Z`, or the clear button.
 
 ### Producer
 
-Open `/control/` on the producer laptop. Same card management as the caster (search, drag, spotlight, remove, decklist) but without drawing tools. The producer has final authority over what appears on the overlay.
+Open `/control/` on the producer laptop. Same card management as the caster (search, drag, spotlight, remove, decklist) but without drawing tools. The header has its own `CLEAR` section (Cards, Card spotlight, Pod spotlight, Player spotlight) so the producer can override anything casters have pushed to the overlay. The producer has final authority over what appears on the overlay.
 
 ---
 

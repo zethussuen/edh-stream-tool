@@ -1,5 +1,5 @@
 import { type RefObject, useCallback, useState } from "react";
-import type { TopDeckConfig, TopDeckTable, NamePlate, StreamPlayerStats, DecklistOverlayData, PodSummaryData } from "@shared/types";
+import type { TopDeckConfig, TopDeckTable, NamePlate, StreamPlayerStats, DecklistOverlayData, PodSummaryData, PlayerSpotlightData } from "@shared/types";
 import { SearchPanel } from "./SearchPanel";
 import { DecklistPanel } from "./DecklistPanel";
 import { TournamentPanel } from "./TournamentPanel";
@@ -22,6 +22,8 @@ interface Props {
   activeDecklist: DecklistOverlayData | null;
   podSummaryActive: boolean;
   onSetPodSummary: (data: PodSummaryData | null) => void;
+  playerSpotlightUid: string | null;
+  onSetPlayerSpotlight: (data: PlayerSpotlightData | null) => void;
 }
 
 const TABS = [
@@ -42,6 +44,8 @@ export function Sidebar({
   activeDecklist,
   podSummaryActive,
   onSetPodSummary,
+  playerSpotlightUid,
+  onSetPlayerSpotlight,
 }: Props) {
   const [pendingPlayerId, setPendingPlayerId] = useState<string | null>(null);
 
@@ -87,6 +91,8 @@ export function Sidebar({
             pendingPlayerId={pendingPlayerId}
             onPlayerConsumed={handlePlayerConsumed}
             activeDecklist={activeDecklist}
+            playerSpotlightUid={playerSpotlightUid}
+            onSetPlayerSpotlight={onSetPlayerSpotlight}
           />
         )}
         {activeTab === "tournament" && (
@@ -98,6 +104,8 @@ export function Sidebar({
             onSelectPlayer={handleSelectPlayer}
             podSummaryActive={podSummaryActive}
             onSetPodSummary={onSetPodSummary}
+            playerSpotlightUid={playerSpotlightUid}
+            onSetPlayerSpotlight={onSetPlayerSpotlight}
           />
         )}
       </div>

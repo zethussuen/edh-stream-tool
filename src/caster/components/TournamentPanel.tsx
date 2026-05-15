@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { TopDeckConfig, TopDeckStanding, TopDeckRound, TopDeckTable, TopDeckAttendee, NamePlate, StreamPlayerStats, PodSummaryData, PodSummaryPlayer, ScryfallCard } from "@shared/types";
+import type { TopDeckConfig, TopDeckStanding, TopDeckRound, TopDeckTable, TopDeckAttendee, NamePlate, StreamPlayerStats, PodSummaryData, PodSummaryPlayer, ScryfallCard, PlayerSpotlightData } from "@shared/types";
 import * as topdeck from "@shared/topdeck";
 import * as scryfall from "@shared/scryfall";
 import { getCommanderLabel } from "@shared/cards";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { IdentificationIcon } from "@hugeicons/core-free-icons";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@shared/components/ui/tooltip";
 
 interface Props {
   config: TopDeckConfig | null;
@@ -12,9 +15,11 @@ interface Props {
   onSelectPlayer: (playerId: string) => void;
   podSummaryActive: boolean;
   onSetPodSummary: (data: PodSummaryData | null) => void;
+  playerSpotlightUid: string | null;
+  onSetPlayerSpotlight: (data: PlayerSpotlightData | null) => void;
 }
 
-export function TournamentPanel({ config, hasServerKey, streamTable, onSetStreamTable, onSelectPlayer, podSummaryActive, onSetPodSummary }: Props) {
+export function TournamentPanel({ config, hasServerKey, streamTable, onSetStreamTable, onSelectPlayer, podSummaryActive, onSetPodSummary, playerSpotlightUid, onSetPlayerSpotlight }: Props) {
   const [standings, setStandings] = useState<TopDeckStanding[]>([]);
   const [attendees, setAttendees] = useState<TopDeckAttendee[]>([]);
   const [currentRound, setCurrentRound] = useState<TopDeckRound | null>(null);
@@ -135,6 +140,56 @@ export function TournamentPanel({ config, hasServerKey, streamTable, onSetStream
       round: currentRound?.round ?? null,
       players,
     };
+  }
+
+  // Build a PlayerSpotlightData for the given player. The player's TopDeck
+  // tournament ID IS their Firebase auth UID, which is also the path used by
+  // the public profile-stats endpoint — so the same id flows into both calls.
+  async function buildPlayerSpotlight(playerId: string, playerName: string): Promise<PlayerSpotlightData> {
+    if (!config) throw new Error("No TopDeck config");
+    const [detail, profileResult, cardMap] = await Promise.all([
+      topdeck.getPlayer(config, playerId).catch(() => null),
+      topdeck.getProfileStats(playerId).catch(() => null),
+      (async () => {
+        const oracleIds = lookupCommanderIds(playerId, playerName);
+        if (oracleIds.length === 0) return new Map<string, ScryfallCard>();
+        try { return await scryfall.getCollection(oracleIds); } catch { return new Map<string, ScryfallCard>(); }
+      })(),
+    ]);
+    const record = topdeck.recordFromPlayerDetail(detail);
+    const s = standings.find((st) => st.id === playerId || st.name === playerName);
+    const commanderImages = commanderImagesFor(playerId, playerName, cardMap);
+    const colorIdentity = mergedColorIdentity(playerId, playerName, cardMap);
+    return {
+      uid: playerId,
+      name: playerName,
+      commanderName: lookupCommander(playerId, playerName),
+      commanderImages,
+      colorIdentity,
+      tournamentName,
+      standing: s?.standing ?? detail?.standing ?? null,
+      wins: record.wins,
+      losses: record.losses,
+      draws: record.draws,
+      winRate: detail?.winRate ?? s?.winRate ?? null,
+      points: s?.points ?? null,
+      opponentWinRate: s?.opponentWinRate ?? null,
+      format: "Magic: The Gathering: EDH",
+      profile: profileResult?.data ?? null,
+    };
+  }
+
+  async function togglePlayerSpotlight(playerId: string, playerName: string) {
+    if (playerSpotlightUid === playerId) {
+      onSetPlayerSpotlight(null);
+      return;
+    }
+    try {
+      const data = await buildPlayerSpotlight(playerId, playerName);
+      onSetPlayerSpotlight(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to build player spotlight");
+    }
   }
 
   async function buildNamePlates(table: TopDeckTable): Promise<NamePlate[]> {
@@ -314,23 +369,48 @@ export function TournamentPanel({ config, hasServerKey, streamTable, onSetStream
                 <div className="flex flex-col gap-0.5">
                   {(table.players ?? []).map((p) => {
                     const cmdr = lookupCommander(p.id, p.name);
+                    const isSpotlit = !!p.id && playerSpotlightUid === p.id;
                     return (
-                      <button
+                      <div
                         key={p.name}
-                        onClick={() => p.id && onSelectPlayer(p.id)}
-                        className={`rounded px-2 py-1 text-left transition-colors ${
+                        className={`flex items-center gap-1 rounded transition-colors ${
                           isStream
                             ? "bg-gold/15 hover:bg-gold/25"
                             : "bg-bg-overlay hover:bg-bg-surface"
-                        } ${p.id ? "cursor-pointer" : "cursor-default"}`}
+                        }`}
                       >
-                        <span className={`text-xs ${isStream ? "text-brand" : "text-text-primary"}`}>
-                          {p.name}
-                        </span>
-                        {cmdr && (
-                          <p className="text-[10px] text-text-dim truncate">{cmdr}</p>
+                        <button
+                          onClick={() => p.id && onSelectPlayer(p.id)}
+                          className={`flex-1 min-w-0 px-2 py-1 text-left ${p.id ? "cursor-pointer" : "cursor-default"}`}
+                        >
+                          <span className={`text-xs ${isStream ? "text-brand" : "text-text-primary"}`}>
+                            {p.name}
+                          </span>
+                          {cmdr && (
+                            <p className="text-[10px] text-text-dim truncate">{cmdr}</p>
+                          )}
+                        </button>
+                        {p.id && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                onClick={() => togglePlayerSpotlight(p.id!, p.name)}
+                                aria-label={isSpotlit ? "Hide player spotlight" : "Show player spotlight"}
+                                className={`shrink-0 mr-1 h-7 w-7 flex items-center justify-center rounded transition-colors ${
+                                  isSpotlit
+                                    ? "bg-status-green/25 text-status-green hover:bg-status-green/40"
+                                    : "text-text-muted hover:text-brand hover:bg-bg-overlay"
+                                }`}
+                              >
+                                <HugeiconsIcon icon={IdentificationIcon} size={16} color="currentColor" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="right" sideOffset={6}>
+                              {isSpotlit ? "Hide player spotlight" : "Show player spotlight"}
+                            </TooltipContent>
+                          </Tooltip>
                         )}
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -347,6 +427,7 @@ export function TournamentPanel({ config, hasServerKey, streamTable, onSetStream
       <div className="flex flex-col gap-1">
         {standings.map((s) => {
           const cmdr = lookupCommander(s.id, s.name);
+          const isSpotlit = !!s.id && playerSpotlightUid === s.id;
           return (
             <div
               key={s.name}
@@ -364,6 +445,26 @@ export function TournamentPanel({ config, hasServerKey, streamTable, onSetStream
                   <span title="Opponent Win Rate">{Math.round(s.opponentWinRate * 100)}% OWR</span>
                 </p>
               </div>
+              {s.id && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => togglePlayerSpotlight(s.id!, s.name)}
+                      aria-label={isSpotlit ? "Hide player spotlight" : "Show player spotlight"}
+                      className={`shrink-0 h-7 w-7 flex items-center justify-center rounded transition-colors ${
+                        isSpotlit
+                          ? "bg-status-green/25 text-status-green hover:bg-status-green/40"
+                          : "text-text-muted hover:text-brand hover:bg-bg-overlay"
+                      }`}
+                    >
+                      <HugeiconsIcon icon={IdentificationIcon} size={18} color="currentColor" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left" sideOffset={6}>
+                    {isSpotlit ? "Hide player spotlight" : "Show player spotlight"}
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </div>
           );
         })}

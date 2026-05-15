@@ -164,6 +164,28 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
     res.json({ hasKey });
   });
 
+  // Profile stats live at /profile/{uid}/stats (public, no API key needed). The
+  // page returns JSON directly when Accept: application/json is sent.
+  app.post("/api/topdeck/profile-stats", async (req, res) => {
+    try {
+      const uid = req.body.uid;
+      if (!uid || typeof uid !== "string" || !SAFE_PARAM.test(uid)) {
+        res.status(400).json({ error: "Invalid uid" });
+        return;
+      }
+      const r = await fetch(`https://topdeck.gg/profile/${uid}/stats`, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "cEDHStreamTool/1.0",
+        },
+      });
+      const data = await r.json();
+      res.status(r.status).json(data);
+    } catch (e) {
+      res.status(502).json({ error: String(e) });
+    }
+  });
+
   topdeckProxy("tournament", ({ tid }) => `${TOPDECK_BASE}/v2/tournaments/${tid}`);
   topdeckProxy("standings", ({ tid }) => `${TOPDECK_BASE}/v2/tournaments/${tid}/standings`);
   topdeckProxy("rounds", ({ tid }) => `${TOPDECK_BASE}/v2/tournaments/${tid}/rounds`);
@@ -179,7 +201,7 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
 
     app.get("/", (_req, res) => res.redirect("/caster"));
 
-    for (const page of ["caster", "control", "overlay", "spotlight", "nameplates", "annotations", "decklist", "focused-card", "pod-summary"]) {
+    for (const page of ["caster", "control", "overlay", "spotlight", "nameplates", "annotations", "decklist", "focused-card", "pod-summary", "player-spotlight"]) {
       const sendPage = (_req: express.Request, res: express.Response) => {
         res.sendFile(join(distDir, "src", page, "index.html"));
       };
@@ -242,6 +264,10 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
     const podSummary = rooms.getPodSummary(room);
     if (podSummary) {
       socket.emit("podSummary:updated", podSummary);
+    }
+    const playerSpotlight = rooms.getPlayerSpotlight(room);
+    if (playerSpotlight) {
+      socket.emit("playerSpotlight:updated", playerSpotlight);
     }
 
     // ── Card lifecycle ──
@@ -351,6 +377,11 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
     socket.on("podSummary:set", (data) => {
       rooms.setPodSummary(room, data);
       io.to(room).emit("podSummary:updated", data);
+    });
+
+    socket.on("playerSpotlight:set", (data) => {
+      rooms.setPlayerSpotlight(room, data);
+      io.to(room).emit("playerSpotlight:updated", data);
     });
 
     socket.on("focusedCard:set", (data) => {

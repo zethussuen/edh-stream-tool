@@ -10,6 +10,7 @@ import type {
   TopDeckTable,
   TopDeckPlayerDetail,
   TopDeckAttendee,
+  TopDeckProfileStats,
 } from "./types";
 
 async function post<T>(
@@ -152,6 +153,38 @@ export async function getPlayer(
     playerId,
     room: config.room,
   });
+}
+
+// Profile stats live at https://topdeck.gg/profile/{uid}/stats (public JSON,
+// not in the v2 tournament API). Proxied through our server for CORS hygiene.
+// Cached by uid, not by tournament — historic stats don't move during a stream.
+const PROFILE_CACHE_PREFIX = "topdeck-profile-cache:";
+
+function profileCacheKey(uid: string): string {
+  return `${PROFILE_CACHE_PREFIX}${uid}`;
+}
+
+export async function getProfileStats(
+  uid: string,
+  forceRefresh = false,
+): Promise<CachedResult<TopDeckProfileStats>> {
+  if (!forceRefresh) {
+    try {
+      const raw = localStorage.getItem(profileCacheKey(uid));
+      if (raw) {
+        const entry = JSON.parse(raw) as CacheEntry<TopDeckProfileStats>;
+        return { data: entry.data, fetchedAt: entry.fetchedAt, fromCache: true };
+      }
+    } catch {
+      // fall through to network
+    }
+  }
+  const data = await post<TopDeckProfileStats>("/profile-stats", { uid });
+  const entry: CacheEntry<TopDeckProfileStats> = { data, fetchedAt: Date.now(), tid: uid };
+  try {
+    localStorage.setItem(profileCacheKey(uid), JSON.stringify(entry));
+  } catch { /* quota exceeded — ignore */ }
+  return { data, fetchedAt: entry.fetchedAt, fromCache: false };
 }
 
 export async function getAttendees(

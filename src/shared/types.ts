@@ -317,3 +317,78 @@ export interface TopDeckAttendee {
     Record<string, { id: string; count: number }>
   > | null;
 }
+
+// ── TopDeck Profile Stats ──
+// Shape of https://topdeck.gg/profile/{uid}/stats when requested with
+// Accept: application/json. The endpoint is public — no API key needed.
+
+export interface TopDeckProfileTournamentEntry {
+  id: string;
+  name: string;
+  date: string;            // ISO 8601
+  record: string;          // e.g. "4-0-1"
+  placement: string;       // e.g. "1st", "Top 16"
+  placementNumber: number;
+  size: number;
+  game: string;
+  bracketLink: string;
+  topCut?: number;
+  rawFormat?: string;
+}
+
+export interface TopDeckTopFinishCounts {
+  firstPlaceFinishes: number;
+  top2: number;
+  top4: number;
+  top8: number;
+  top10: number;
+  top16: number;
+}
+
+export interface TopDeckYearlyStatsEntry extends TopDeckTopFinishCounts {
+  totalTournaments: number;
+  topCutEligible: number;
+  wins: number;
+  losses: number;
+  draws: number;
+}
+
+export interface TopDeckEloEntry {
+  game: string;
+  format: string;
+  leaderboardId: string;
+  elo: number;
+  gamesPlayed: number;
+}
+
+export interface TopDeckProfileStats {
+  gameFormats: Record<string, TopDeckProfileTournamentEntry[]>;
+  topFinishes: Record<string, TopDeckTopFinishCounts>;
+  yearlyStats: Record<string, Record<string, TopDeckYearlyStatsEntry>>;
+  tdcsData: unknown;
+  leaguesData: TopDeckProfileTournamentEntry[];
+  elos: TopDeckEloEntry[];
+  headToHead: unknown;
+}
+
+// ── Player Spotlight Overlay ──
+
+export interface PlayerSpotlightData {
+  uid: string;
+  name: string;
+  commanderName: string | null;
+  commanderImages: string[];   // up to 2 (primary + partner)
+  colorIdentity: string[];
+  // Current tournament context
+  tournamentName: string;
+  standing: number | null;
+  wins: number;
+  losses: number;
+  draws: number;
+  winRate: number | null;       // 0–1
+  points: number | null;
+  opponentWinRate: number | null;
+  // Historic
+  format: string;               // which key in profile stats to highlight, e.g. "Magic: The Gathering: EDH"
+  profile: TopDeckProfileStats | null;
+}

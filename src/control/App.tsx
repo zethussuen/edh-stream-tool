@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { TopDeckConfig, TopDeckTable, NamePlate, FocusedCardData, StreamPlayerStats, BrandSettings, DecklistOverlayData, OverlayStyleSettings, PodSummaryData } from "@shared/types";
+import type { TopDeckConfig, TopDeckTable, NamePlate, FocusedCardData, StreamPlayerStats, BrandSettings, DecklistOverlayData, OverlayStyleSettings, PodSummaryData, PlayerSpotlightData } from "@shared/types";
 import { OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
 import { applyBrandSettings, readCachedBrandSettings, useBrandSettings } from "@shared/brand";
 import { readCachedOverlayStyleSettings, useOverlayStyleSettings } from "@shared/overlay-style";
@@ -75,6 +75,19 @@ export function App() {
   const handleSetPodSummary = useCallback((data: PodSummaryData | null) => {
     setPodSummary(data);
     emit("podSummary:set", data);
+  }, [emit]);
+
+  const [playerSpotlight, setPlayerSpotlight] = useState<PlayerSpotlightData | null>(null);
+  useEffect(() => {
+    const s = socket.current;
+    if (!s) return;
+    const handler = (data: PlayerSpotlightData | null) => setPlayerSpotlight(data);
+    s.on("playerSpotlight:updated", handler);
+    return () => { s.off("playerSpotlight:updated", handler); };
+  }, [socket]);
+  const handleSetPlayerSpotlight = useCallback((data: PlayerSpotlightData | null) => {
+    setPlayerSpotlight(data);
+    emit("playerSpotlight:set", data);
   }, [emit]);
   const room = getRoom();
   const [topDeckConfig, setTopDeckConfigLocal] = useState<TopDeckConfig | null>(
@@ -196,6 +209,12 @@ export function App() {
     return () => document.removeEventListener("mousedown", onClick);
   }, [showDevicePicker]);
 
+  const handleClearCards = useCallback(() => {
+    if (window.confirm("Clear all cards from overlay?")) {
+      emit("cards:clearAll");
+    }
+  }, [emit]);
+
   const handleCameraClick = useCallback(async () => {
     if (publishing) {
       stopCapture();
@@ -259,6 +278,67 @@ export function App() {
         <span className="font-heading text-xl tracking-wider text-brand mr-4">
           PRODUCER CONTROL
         </span>
+
+        {/* Clear section */}
+        <div className="h-6 w-px bg-border" />
+        <span className="text-[9px] font-medium uppercase tracking-widest text-text-muted ml-1 shrink-0">Clear</span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={handleClearCards}
+              className="h-8 rounded bg-bg-surface px-3 text-xs text-text-dim hover:bg-bg-overlay hover:text-text-primary transition-colors"
+            >
+              Cards
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" sideOffset={6}>Remove all cards from overlay</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => emit("spotlight:off")}
+              className={`h-8 rounded px-3 text-xs transition-colors ${
+                state.spotlight != null
+                  ? "bg-gold/20 text-brand border border-gold/40 hover:bg-gold/30"
+                  : "bg-bg-surface text-text-dim hover:bg-bg-overlay hover:text-text-primary"
+              }`}
+            >
+              Card spotlight
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" sideOffset={6}>Dismiss card spotlight</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => handleSetPodSummary(null)}
+              className={`h-8 rounded px-3 text-xs transition-colors ${
+                podSummary != null
+                  ? "bg-gold/20 text-brand border border-gold/40 hover:bg-gold/30"
+                  : "bg-bg-surface text-text-dim hover:bg-bg-overlay hover:text-text-primary"
+              }`}
+            >
+              Pod spotlight
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" sideOffset={6}>Hide pod summary overlay</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => handleSetPlayerSpotlight(null)}
+              className={`h-8 rounded px-3 text-xs transition-colors ${
+                playerSpotlight != null
+                  ? "bg-gold/20 text-brand border border-gold/40 hover:bg-gold/30"
+                  : "bg-bg-surface text-text-dim hover:bg-bg-overlay hover:text-text-primary"
+              }`}
+            >
+              Player spotlight
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" sideOffset={6}>Hide player spotlight overlay</TooltipContent>
+        </Tooltip>
+
         <div className="flex-1" />
         <div className="relative" ref={pickerRef}>
           <Tooltip>
@@ -324,6 +404,8 @@ export function App() {
         activeDecklist={activeDecklist}
         podSummaryActive={podSummary != null}
         onSetPodSummary={handleSetPodSummary}
+        playerSpotlightUid={playerSpotlight?.uid ?? null}
+        onSetPlayerSpotlight={handleSetPlayerSpotlight}
       />
 
       {/* Canvas (no draw layer) */}

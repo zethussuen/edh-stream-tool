@@ -3,13 +3,14 @@ import { useRoom, useSocket } from "@shared/socket";
 import { DEFAULT_NAMEPLATE_STYLE, OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
 import { useBrandSettings } from "@shared/brand";
 import { readCachedOverlayStyleSettings, useOverlayStyleSettings } from "@shared/overlay-style";
-import type { NamePlate, DecklistOverlayData, OverlayStyleSettings, StreamPlayerStats, PodSummaryData } from "@shared/types";
+import type { NamePlate, DecklistOverlayData, OverlayStyleSettings, StreamPlayerStats, PodSummaryData, PlayerSpotlightData } from "@shared/types";
 import { CardRenderer } from "./components/CardRenderer";
 import { DrawRenderer } from "./components/DrawRenderer";
 import { Spotlight } from "./components/Spotlight";
 import { NamePlates } from "./components/NamePlates";
 import { DecklistOverlay } from "./components/DecklistOverlay";
 import { PodSummary } from "./components/PodSummary";
+import { PlayerSpotlight } from "./components/PlayerSpotlight";
 
 export function App() {
   const { socket, connected } = useSocket("overlay");
@@ -19,6 +20,7 @@ export function App() {
   const [streamStats, setStreamStats] = useState<StreamPlayerStats[] | null>(null);
   const [decklist, setDecklist] = useState<DecklistOverlayData | null>(null);
   const [podSummary, setPodSummary] = useState<PodSummaryData | null>(null);
+  const [playerSpotlight, setPlayerSpotlight] = useState<PlayerSpotlightData | null>(null);
   const [overlayStyle, setOverlayStyle] = useState<OverlayStyleSettings | null>(
     () => readCachedOverlayStyleSettings(),
   );
@@ -56,6 +58,14 @@ export function App() {
     return () => { s.off("podSummary:updated", handler); };
   }, [socket]);
 
+  useEffect(() => {
+    const s = socket.current;
+    if (!s) return;
+    const handler = (data: PlayerSpotlightData | null) => setPlayerSpotlight(data);
+    s.on("playerSpotlight:updated", handler);
+    return () => { s.off("playerSpotlight:updated", handler); };
+  }, [socket]);
+
   const spotlightCard = state.spotlight;
 
   return (
@@ -88,6 +98,9 @@ export function App() {
 
       {/* Pod Summary */}
       <PodSummary data={podSummary} />
+
+      {/* Player Spotlight */}
+      <PlayerSpotlight data={playerSpotlight} />
 
       {/* Spotlight */}
       <Spotlight card={spotlightCard} />

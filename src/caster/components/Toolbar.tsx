@@ -16,6 +16,10 @@ interface Props {
   onClearSpotlight: () => void;
   spotlightActive: boolean;
   onClearCards: () => void;
+  onClearPodSpotlight: () => void;
+  podSpotlightActive: boolean;
+  onClearPlayerSpotlight: () => void;
+  playerSpotlightActive: boolean;
   onClearAll: () => void;
   onOpenSettings: () => void;
   connected: boolean;
@@ -48,6 +52,10 @@ export function Toolbar({
   onClearSpotlight,
   spotlightActive,
   onClearCards,
+  onClearPodSpotlight,
+  podSpotlightActive,
+  onClearPlayerSpotlight,
+  playerSpotlightActive,
   onClearAll,
   onOpenSettings,
   connected,
@@ -138,7 +146,7 @@ export function Toolbar({
 
       <div className="h-6 w-px bg-border" />
 
-      {/* Undo / Clear */}
+      {/* Undo */}
       <Tooltip>
         <TooltipTrigger asChild>
           <button
@@ -152,17 +160,35 @@ export function Toolbar({
           Undo last drawing <kbd className="ml-1 rounded bg-background/20 px-1 py-0.5 text-[10px] font-mono">Ctrl+Z</kbd>
         </TooltipContent>
       </Tooltip>
+
+      <div className="h-6 w-px bg-border" />
+
+      {/* Clear section */}
+      <span className="text-[9px] font-medium uppercase tracking-widest text-text-muted ml-1 shrink-0">Clear</span>
       <Tooltip>
         <TooltipTrigger asChild>
           <button
             onClick={onClearDrawings}
             className="h-8 rounded bg-bg-surface px-3 text-xs text-text-dim hover:bg-bg-overlay hover:text-text-primary transition-colors"
           >
-            Clear drawings
+            Drawings
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom" sideOffset={6}>
           Clear all drawings <kbd className="ml-1 rounded bg-background/20 px-1 py-0.5 text-[10px] font-mono">X</kbd>
+        </TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={onClearCards}
+            className="h-8 rounded bg-bg-surface px-3 text-xs text-text-dim hover:bg-bg-overlay hover:text-text-primary transition-colors"
+          >
+            Cards
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" sideOffset={6}>
+          Remove all cards from overlay
         </TooltipContent>
       </Tooltip>
       <Tooltip>
@@ -175,24 +201,45 @@ export function Toolbar({
                 : "bg-bg-surface text-text-dim hover:bg-bg-overlay hover:text-text-primary"
             }`}
           >
-            Clear spotlight
+            Card spotlight
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom" sideOffset={6}>
-          Dismiss spotlight <kbd className="ml-1 rounded bg-background/20 px-1 py-0.5 text-[10px] font-mono">Esc</kbd>
+          Dismiss card spotlight <kbd className="ml-1 rounded bg-background/20 px-1 py-0.5 text-[10px] font-mono">Esc</kbd>
         </TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
           <button
-            onClick={onClearCards}
-            className="h-8 rounded bg-bg-surface px-3 text-xs text-text-dim hover:bg-bg-overlay hover:text-text-primary transition-colors"
+            onClick={onClearPodSpotlight}
+            className={`h-8 rounded px-3 text-xs transition-colors ${
+              podSpotlightActive
+                ? "bg-gold/20 text-brand border border-gold/40 hover:bg-gold/30"
+                : "bg-bg-surface text-text-dim hover:bg-bg-overlay hover:text-text-primary"
+            }`}
           >
-            Clear cards
+            Pod spotlight
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom" sideOffset={6}>
-          Remove all cards from overlay
+          Hide pod summary overlay
+        </TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={onClearPlayerSpotlight}
+            className={`h-8 rounded px-3 text-xs transition-colors ${
+              playerSpotlightActive
+                ? "bg-gold/20 text-brand border border-gold/40 hover:bg-gold/30"
+                : "bg-bg-surface text-text-dim hover:bg-bg-overlay hover:text-text-primary"
+            }`}
+          >
+            Player spotlight
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" sideOffset={6}>
+          Hide player spotlight overlay
         </TooltipContent>
       </Tooltip>
       <Tooltip>
@@ -201,7 +248,7 @@ export function Toolbar({
             onClick={onClearAll}
             className="h-8 rounded bg-bg-surface px-3 text-xs text-status-red hover:bg-status-red/10 transition-colors"
           >
-            Clear all
+            All
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom" sideOffset={6}>
@@ -225,7 +272,7 @@ export function Toolbar({
             <kbd className="font-mono text-[10px]">V P A C</kbd><span>Select / Pen / Arrow / Circle</span>
             <kbd className="font-mono text-[10px]">X</kbd><span>Clear drawings</span>
             <kbd className="font-mono text-[10px]">Ctrl+Z</kbd><span>Undo drawing</span>
-            <kbd className="font-mono text-[10px]">Esc</kbd><span>Dismiss spotlight</span>
+            <kbd className="font-mono text-[10px]">Esc</kbd><span>Dismiss card spotlight</span>
             <kbd className="font-mono text-[10px]">/</kbd><span>Focus search</span>
           </div>
         </TooltipContent>

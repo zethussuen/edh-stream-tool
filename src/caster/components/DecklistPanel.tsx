@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import type { ScryfallCard, TopDeckConfig, TopDeckAttendee, TopDeckTable, DecklistOverlayData, DecklistOverlaySection } from "@shared/types";
+import type { ScryfallCard, TopDeckConfig, TopDeckAttendee, TopDeckTable, DecklistOverlayData, DecklistOverlaySection, PlayerSpotlightData } from "@shared/types";
 import * as topdeck from "@shared/topdeck";
 import * as scryfall from "@shared/scryfall";
 import * as scrollrack from "@shared/scrollrack";
 import { cardAddPayload, spotlightPayload, focusedCardPayload, cardDragStart, getCommanderLabel } from "@shared/cards";
 import { matchesFilter, parseQuery } from "@shared/card-filter";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { PlusSignCircleIcon, SpotlightIcon, Image01Icon } from "@hugeicons/core-free-icons";
+import { PlusSignCircleIcon, SpotlightIcon, Image01Icon, IdentificationIcon } from "@hugeicons/core-free-icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@shared/components/ui/tooltip";
 import { ManaCost } from "@shared/components/ManaCost";
 
@@ -18,6 +18,8 @@ interface Props {
   pendingPlayerId: string | null;
   onPlayerConsumed: () => void;
   activeDecklist: DecklistOverlayData | null;
+  playerSpotlightUid: string | null;
+  onSetPlayerSpotlight: (data: PlayerSpotlightData | null) => void;
 }
 
 interface DeckSection {
@@ -150,40 +152,69 @@ async function buildSectionsFromIds(
   return { sections: Array.from(sectionMap.values()), found: cardMap.size, total: allIds.length };
 }
 
-function PlayerRow({ attendee, onSelect }: { attendee: TopDeckAttendee; onSelect: (a: TopDeckAttendee) => void }) {
+function PlayerRow({
+  attendee,
+  onSelect,
+  spotlightUid,
+  onToggleSpotlight,
+}: {
+  attendee: TopDeckAttendee;
+  onSelect: (a: TopDeckAttendee) => void;
+  spotlightUid: string | null;
+  onToggleSpotlight: (a: TopDeckAttendee) => void;
+}) {
   const hasDeck = !!(attendee.deckObj || attendee.decklist);
   const cmdr = getCommanderLabel(attendee.deckObj);
+  const isSpotlit = spotlightUid === attendee.uid;
   return (
-    <button
-      onClick={() => hasDeck && onSelect(attendee)}
-      disabled={!hasDeck}
-      className={`flex items-center gap-2 rounded p-2 text-left transition-colors w-full ${
-        hasDeck
-          ? "hover:bg-bg-surface cursor-pointer"
-          : "opacity-40 cursor-not-allowed"
-      }`}
-    >
-      {attendee.standing != null && (
-        <span className="text-xs text-text-muted w-6 text-right shrink-0">
-          #{attendee.standing}
-        </span>
-      )}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm text-text-primary truncate">{attendee.name}</p>
-        {cmdr && (
-          <p className="text-[11px] text-text-dim truncate">{cmdr}</p>
+    <div className="flex items-center gap-1 rounded transition-colors hover:bg-bg-surface w-full">
+      <button
+        onClick={() => hasDeck && onSelect(attendee)}
+        disabled={!hasDeck}
+        className={`flex items-center gap-2 p-2 text-left flex-1 min-w-0 ${
+          hasDeck ? "cursor-pointer" : "opacity-40 cursor-not-allowed"
+        }`}
+      >
+        {attendee.standing != null && (
+          <span className="text-xs text-text-muted w-6 text-right shrink-0">
+            #{attendee.standing}
+          </span>
         )}
-      </div>
-      {hasDeck ? (
-        <span className="text-[10px] text-brand shrink-0">Deck &rarr;</span>
-      ) : (
-        <span className="text-[10px] text-text-muted shrink-0">No deck</span>
-      )}
-    </button>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-text-primary truncate">{attendee.name}</p>
+          {cmdr && (
+            <p className="text-[11px] text-text-dim truncate">{cmdr}</p>
+          )}
+        </div>
+        {hasDeck ? (
+          <span className="text-[10px] text-brand shrink-0">Deck &rarr;</span>
+        ) : (
+          <span className="text-[10px] text-text-muted shrink-0">No deck</span>
+        )}
+      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={() => onToggleSpotlight(attendee)}
+            aria-label={isSpotlit ? "Hide player spotlight" : "Show player spotlight"}
+            className={`shrink-0 mr-1 h-7 w-7 flex items-center justify-center rounded transition-colors ${
+              isSpotlit
+                ? "bg-status-green/25 text-status-green hover:bg-status-green/40"
+                : "text-text-muted hover:text-brand hover:bg-bg-overlay"
+            }`}
+          >
+            <HugeiconsIcon icon={IdentificationIcon} size={18} color="currentColor" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="left" sideOffset={6}>
+          {isSpotlit ? "Hide player spotlight" : "Show player spotlight"}
+        </TooltipContent>
+      </Tooltip>
+    </div>
   );
 }
 
-export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, pendingPlayerId, onPlayerConsumed, activeDecklist }: Props) {
+export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, pendingPlayerId, onPlayerConsumed, activeDecklist, playerSpotlightUid, onSetPlayerSpotlight }: Props) {
   const [attendees, setAttendees] = useState<TopDeckAttendee[]>([]);
   const [tournamentName, setTournamentName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -297,6 +328,63 @@ export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, 
       if (!stale()) setDeckLoading(false);
     }
   }, []);
+
+  const togglePlayerSpotlight = useCallback(async (attendee: TopDeckAttendee) => {
+    if (playerSpotlightUid === attendee.uid) {
+      onSetPlayerSpotlight(null);
+      return;
+    }
+    if (!topDeckConfig) return;
+    try {
+      // Resolve commander oracle IDs from the attendee's deckObj, then fan out
+      // player-detail, profile-stats, and Scryfall commander images in parallel.
+      const oracleIds = attendee.deckObj?.Commanders
+        ? Object.values(attendee.deckObj.Commanders)
+            .filter((v): v is { id: string; count: number } => typeof v === "object" && !!v?.id)
+            .map((v) => v.id)
+        : [];
+      const [detail, profileResult, cardMap] = await Promise.all([
+        topdeck.getPlayer(topDeckConfig, attendee.uid).catch(() => null),
+        topdeck.getProfileStats(attendee.uid).catch(() => null),
+        oracleIds.length > 0
+          ? scryfall.getCollection(oracleIds).catch(() => new Map<string, ScryfallCard>())
+          : Promise.resolve(new Map<string, ScryfallCard>()),
+      ]);
+      const record = topdeck.recordFromPlayerDetail(detail);
+      const commanderImages = oracleIds
+        .map((id) => cardMap.get(id)?.imageUri)
+        .filter((u): u is string => typeof u === "string")
+        .slice(0, 2);
+      const colorSet = new Set<string>();
+      for (const id of oracleIds) {
+        const card = cardMap.get(id);
+        if (card) for (const c of card.colorIdentity) colorSet.add(c);
+      }
+      const wubrg = ["W", "U", "B", "R", "G"];
+      const colorIdentity = wubrg.filter((c) => colorSet.has(c));
+      if (colorIdentity.length === 0 && oracleIds.length > 0) colorIdentity.push("C");
+
+      onSetPlayerSpotlight({
+        uid: attendee.uid,
+        name: attendee.name,
+        commanderName: getCommanderLabel(attendee.deckObj),
+        commanderImages,
+        colorIdentity,
+        tournamentName,
+        standing: attendee.standing ?? detail?.standing ?? null,
+        wins: record.wins,
+        losses: record.losses,
+        draws: record.draws,
+        winRate: detail?.winRate ?? null,
+        points: null,
+        opponentWinRate: null,
+        format: "Magic: The Gathering: EDH",
+        profile: profileResult?.data ?? null,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to build player spotlight");
+    }
+  }, [topDeckConfig, playerSpotlightUid, onSetPlayerSpotlight, tournamentName]);
 
   useEffect(() => {
     if (!pendingPlayerId || attendees.length === 0) return;
@@ -588,7 +676,15 @@ export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, 
         <p className="text-xs text-text-dim text-center py-4">Loading...</p>
       )}
 
-      {streamTable && <StreamTableSection table={streamTable} attendees={attendees} onSelect={loadPlayerDeck} />}
+      {streamTable && (
+        <StreamTableSection
+          table={streamTable}
+          attendees={attendees}
+          onSelect={loadPlayerDeck}
+          spotlightUid={playerSpotlightUid}
+          onToggleSpotlight={togglePlayerSpotlight}
+        />
+      )}
 
       <p className="text-[10px] font-medium uppercase tracking-widest text-text-muted">
         {streamTable ? "All Players" : "Players"} ({attendees.length})
@@ -596,7 +692,13 @@ export function DecklistPanel({ emit, topDeckConfig, hasServerKey, streamTable, 
 
       <div className="flex flex-col gap-1">
         {attendees.map((a) => (
-          <PlayerRow key={a.uid} attendee={a} onSelect={loadPlayerDeck} />
+          <PlayerRow
+            key={a.uid}
+            attendee={a}
+            onSelect={loadPlayerDeck}
+            spotlightUid={playerSpotlightUid}
+            onToggleSpotlight={togglePlayerSpotlight}
+          />
         ))}
       </div>
     </div>
@@ -607,10 +709,14 @@ function StreamTableSection({
   table,
   attendees,
   onSelect,
+  spotlightUid,
+  onToggleSpotlight,
 }: {
   table: TopDeckTable;
   attendees: TopDeckAttendee[];
   onSelect: (a: TopDeckAttendee) => void;
+  spotlightUid: string | null;
+  onToggleSpotlight: (a: TopDeckAttendee) => void;
 }) {
   const streamPlayerIds = new Set(
     table.players.map((p) => p.id).filter(Boolean),
@@ -632,7 +738,13 @@ function StreamTableSection({
       <div className="flex flex-col gap-1">
         {matched.length > 0
           ? matched.map((a) => (
-              <PlayerRow key={a.uid} attendee={a} onSelect={onSelect} />
+              <PlayerRow
+                key={a.uid}
+                attendee={a}
+                onSelect={onSelect}
+                spotlightUid={spotlightUid}
+                onToggleSpotlight={onToggleSpotlight}
+              />
             ))
           : table.players.map((p) => (
               <p key={p.name} className="text-sm text-text-primary px-1.5 py-1">

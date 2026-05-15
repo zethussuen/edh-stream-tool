@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DrawTool, TopDeckConfig, TopDeckTable, NamePlate, FocusedCardData, StreamPlayerStats, DecklistOverlayData, PodSummaryData } from "@shared/types";
+import type { DrawTool, TopDeckConfig, TopDeckTable, NamePlate, FocusedCardData, StreamPlayerStats, DecklistOverlayData, PodSummaryData, PlayerSpotlightData } from "@shared/types";
 import { DRAW_COLORS, DRAW_WIDTHS, OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
 import { useBrandSettings } from "@shared/brand";
 import { useRoom, useSocket, getRoom } from "@shared/socket";
@@ -64,6 +64,20 @@ export function App() {
   const handleSetPodSummary = useCallback((data: PodSummaryData | null) => {
     setPodSummary(data);
     emit("podSummary:set", data);
+  }, [emit]);
+
+  // Active player spotlight on overlay
+  const [playerSpotlight, setPlayerSpotlight] = useState<PlayerSpotlightData | null>(null);
+  useEffect(() => {
+    const s = socket.current;
+    if (!s) return;
+    const handler = (data: PlayerSpotlightData | null) => setPlayerSpotlight(data);
+    s.on("playerSpotlight:updated", handler);
+    return () => { s.off("playerSpotlight:updated", handler); };
+  }, [socket]);
+  const handleSetPlayerSpotlight = useCallback((data: PlayerSpotlightData | null) => {
+    setPlayerSpotlight(data);
+    emit("playerSpotlight:set", data);
   }, [emit]);
 
   // Receive stream table changes from other clients
@@ -222,6 +236,10 @@ export function App() {
           onClearSpotlight={() => emit("spotlight:off")}
           spotlightActive={state.spotlight != null}
           onClearCards={handleClearCards}
+          onClearPodSpotlight={() => handleSetPodSummary(null)}
+          podSpotlightActive={podSummary != null}
+          onClearPlayerSpotlight={() => handleSetPlayerSpotlight(null)}
+          playerSpotlightActive={playerSpotlight != null}
           onClearAll={handleClearAll}
           onOpenSettings={() => setSettingsOpen(true)}
           connected={connected}
@@ -241,6 +259,8 @@ export function App() {
         activeDecklist={activeDecklist}
         podSummaryActive={podSummary != null}
         onSetPodSummary={handleSetPodSummary}
+        playerSpotlightUid={playerSpotlight?.uid ?? null}
+        onSetPlayerSpotlight={handleSetPlayerSpotlight}
       />
 
       {/* Preview Canvas */}

@@ -1,4 +1,4 @@
-import type { OverlayCard, RoomState, SpotlightData, TopDeckTable, NamePlate, DecklistOverlayData, FocusedCardData, StreamPlayerStats, BrandSettings, OverlayStyleSettings, PodSummaryData } from "../src/shared/types.js";
+import type { OverlayCard, RoomState, SpotlightData, TopDeckTable, NamePlate, DecklistOverlayData, FocusedCardData, StreamPlayerStats, BrandSettings, OverlayStyleSettings, PodSummaryData, PlayerSpotlightData } from "../src/shared/types.js";
 import { OVERLAY_WIDTH, OVERLAY_HEIGHT } from "../src/shared/constants.js";
 
 interface TopDeckRoomConfig {
@@ -20,6 +20,7 @@ interface RoomData {
   brandSettings: BrandSettings | null;
   overlayStyleSettings: OverlayStyleSettings | null;
   podSummary: PodSummaryData | null;
+  playerSpotlight: PlayerSpotlightData | null;
 }
 
 export class RoomManager {
@@ -261,6 +262,14 @@ export class RoomManager {
     return this.rooms.get(room)?.podSummary ?? null;
   }
 
+  setPlayerSpotlight(room: string, data: PlayerSpotlightData | null): void {
+    this.getRoomData(room).playerSpotlight = data;
+  }
+
+  getPlayerSpotlight(room: string): PlayerSpotlightData | null {
+    return this.rooms.get(room)?.playerSpotlight ?? null;
+  }
+
   clearAll(room: string): RoomState {
     const rd = this.getRoomData(room);
     rd.state.cards = [];
@@ -289,6 +298,7 @@ export class RoomManager {
         brandSettings: null,
         overlayStyleSettings: null,
         podSummary: null,
+        playerSpotlight: null,
       };
       this.rooms.set(room, rd);
     }
