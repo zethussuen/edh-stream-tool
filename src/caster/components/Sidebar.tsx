@@ -1,5 +1,5 @@
 import { type RefObject, useCallback, useState } from "react";
-import type { TopDeckConfig, TopDeckTable, NamePlate, DecklistOverlayData, PodSummaryData } from "@shared/types";
+import type { TopDeckConfig, TopDeckTable, NamePlate, StreamPlayerStats, DecklistOverlayData, PodSummaryData } from "@shared/types";
 import { SearchPanel } from "./SearchPanel";
 import { DecklistPanel } from "./DecklistPanel";
 import { TournamentPanel } from "./TournamentPanel";
@@ -11,7 +11,13 @@ interface Props {
   topDeckConfig: TopDeckConfig | null;
   hasServerKey: boolean;
   streamTable: TopDeckTable | null;
-  setStreamTable: (table: TopDeckTable | null, plates: NamePlate[] | null) => void;
+  setStreamTable: (
+    table: TopDeckTable | null,
+    plates: NamePlate[] | null,
+    round?: number | string,
+    tournamentName?: string,
+    stats?: StreamPlayerStats[] | null,
+  ) => void;
   searchInputRef: RefObject<HTMLInputElement | null>;
   activeDecklist: DecklistOverlayData | null;
   podSummaryActive: boolean;
@@ -38,10 +44,6 @@ export function Sidebar({
   onSetPodSummary,
 }: Props) {
   const [pendingPlayerId, setPendingPlayerId] = useState<string | null>(null);
-
-  const handleSetStreamTable = useCallback((table: TopDeckTable | null, plates: NamePlate[] | null) => {
-    setStreamTable(table, plates);
-  }, [setStreamTable]);
 
   const handleSelectPlayer = useCallback((playerId: string) => {
     setPendingPlayerId(playerId);
@@ -92,7 +94,7 @@ export function Sidebar({
             config={topDeckConfig}
             hasServerKey={hasServerKey}
             streamTable={streamTable}
-            onSetStreamTable={handleSetStreamTable}
+            onSetStreamTable={setStreamTable}
             onSelectPlayer={handleSelectPlayer}
             podSummaryActive={podSummaryActive}
             onSetPodSummary={onSetPodSummary}

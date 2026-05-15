@@ -7,7 +7,7 @@ import { dirname, join } from "path";
 import { networkInterfaces } from "node:os";
 import fs from "node:fs/promises";
 import { RoomManager } from "./room.js";
-import type { NamePlate, BrandSettings } from "../src/shared/types.js";
+import type { NamePlate, BrandSettings, OverlayStyleSettings } from "../src/shared/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -235,6 +235,10 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
     if (brandSettings) {
       socket.emit("brand:updated", brandSettings);
     }
+    const overlayStyleSettings = rooms.getOverlayStyleSettings(room);
+    if (overlayStyleSettings) {
+      socket.emit("overlayStyle:updated", overlayStyleSettings);
+    }
     const podSummary = rooms.getPodSummary(room);
     if (podSummary) {
       socket.emit("podSummary:updated", podSummary);
@@ -372,6 +376,12 @@ export function startServer(distDir?: string, obsDir?: string): Promise<ServerIn
       if (role !== "control") return;
       rooms.setBrandSettings(room, data);
       io.to(room).emit("brand:updated", data);
+    });
+
+    socket.on("overlayStyle:set", (data: OverlayStyleSettings | null) => {
+      if (role !== "control") return;
+      rooms.setOverlayStyleSettings(room, data);
+      io.to(room).emit("overlayStyle:updated", data);
     });
 
     // ── TopDeck Config (producer shares with room) ──

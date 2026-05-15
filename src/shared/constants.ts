@@ -14,6 +14,8 @@ export const DEFAULT_BRAND = {
   fontFamily: "Bebas Neue",
 };
 
+export const DEFAULT_NAMEPLATE_STYLE = "classic" as const;
+
 export const DRAW_COLORS = [
   "#ef4444", // red
   "#eab308", // yellow

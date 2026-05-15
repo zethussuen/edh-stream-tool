@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { TopDeckConfig, TopDeckTable, NamePlate, FocusedCardData, StreamPlayerStats, BrandSettings, DecklistOverlayData, PodSummaryData } from "@shared/types";
+import type { TopDeckConfig, TopDeckTable, NamePlate, FocusedCardData, StreamPlayerStats, BrandSettings, DecklistOverlayData, OverlayStyleSettings, PodSummaryData } from "@shared/types";
 import { OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
 import { applyBrandSettings, readCachedBrandSettings, useBrandSettings } from "@shared/brand";
+import { readCachedOverlayStyleSettings, useOverlayStyleSettings } from "@shared/overlay-style";
 import { useRoom, useSocket, getRoom } from "@shared/socket";
 import { useFeedPublisher } from "@shared/feed";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@shared/components/ui/tooltip";
@@ -148,6 +149,25 @@ export function App() {
     setBrandSettings(settings);
     applyBrandSettings(settings);
     emit("brand:set", settings);
+  }, [emit]);
+
+  // ── Overlay style settings (nameplate visual style) ──
+  const [overlayStyleSettings, setOverlayStyleSettings] = useState<OverlayStyleSettings | null>(
+    () => readCachedOverlayStyleSettings(),
+  );
+  useOverlayStyleSettings(socket, setOverlayStyleSettings);
+
+  const overlayStyleRef = useRef(overlayStyleSettings);
+  overlayStyleRef.current = overlayStyleSettings;
+
+  useEffect(() => {
+    if (!connected) return;
+    if (overlayStyleRef.current) emit("overlayStyle:set", overlayStyleRef.current);
+  }, [connected, emit]);
+
+  const handleOverlayStyleChange = useCallback((settings: OverlayStyleSettings | null) => {
+    setOverlayStyleSettings(settings);
+    emit("overlayStyle:set", settings);
   }, [emit]);
 
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
@@ -337,6 +357,8 @@ export function App() {
         role="control"
         brandSettings={brandSettings}
         onBrandSettingsChange={handleBrandSettingsChange}
+        overlayStyleSettings={overlayStyleSettings}
+        onOverlayStyleChange={handleOverlayStyleChange}
       />
     </div>
   );

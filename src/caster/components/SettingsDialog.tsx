@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import type { TopDeckConfig, BrandSettings } from "@shared/types";
-import { DEFAULT_BRAND } from "@shared/constants";
+import { createPortal } from "react-dom";
+import type { TopDeckConfig, BrandSettings, NameplateStyle, OverlayStyleSettings } from "@shared/types";
+import { DEFAULT_BRAND, DEFAULT_NAMEPLATE_STYLE } from "@shared/constants";
 
 const FONT_OPTIONS = [
   "Anton",
@@ -51,24 +52,29 @@ const FONT_OPTIONS = [
   "Urbanist",
 ];
 
+// FontPicker dropdown is portaled to document.body so it isn't clipped by the
+// dialog's scrollable content pane.
 function FontPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (buttonRef.current?.contains(t)) return;
+      if (dropdownRef.current?.contains(t)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  // Reset filter and focus search whenever the dropdown opens; scroll the
-  // current selection into view so users land on it.
   useEffect(() => {
     if (!open) return;
     setQuery("");
@@ -78,15 +84,24 @@ function FontPicker({ value, onChange }: { value: string; onChange: (v: string) 
     });
   }, [open]);
 
+  function toggle() {
+    if (!open) {
+      const r = buttonRef.current?.getBoundingClientRect();
+      if (r) setCoords({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+    setOpen((o) => !o);
+  }
+
   const filtered = query
     ? FONT_OPTIONS.filter((f) => f.toLowerCase().includes(query.toLowerCase()))
     : FONT_OPTIONS;
 
   return (
-    <div ref={containerRef} className="relative flex-1">
+    <div className="relative flex-1">
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
         className="h-8 w-full flex items-center justify-between gap-2 rounded border border-border bg-bg-surface px-3 text-sm text-text-primary hover:border-gold/60 focus:border-gold focus:outline-none"
       >
         <span className="truncate">{value || "Select font…"}</span>
@@ -104,8 +119,18 @@ function FontPicker({ value, onChange }: { value: string; onChange: (v: string) 
           <path d="M2 3.5l3 3 3-3" />
         </svg>
       </button>
-      {open && (
-        <div className="absolute z-[10001] top-full left-0 right-0 mt-1 rounded border border-border bg-bg-raised shadow-xl">
+      {open && createPortal(
+        <div
+          ref={dropdownRef}
+          style={{
+            position: "fixed",
+            top: coords.top,
+            left: coords.left,
+            width: coords.width,
+            zIndex: 10002,
+          }}
+          className="rounded border border-border bg-bg-raised shadow-xl"
+        >
           <div className="p-1.5 border-b border-border">
             <input
               ref={searchRef}
@@ -149,11 +174,266 @@ function FontPicker({ value, onChange }: { value: string; onChange: (v: string) 
               ))
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
 }
+
+// ── Nameplate style picker ──
+
+const NAMEPLATE_STYLE_OPTIONS: Array<{
+  id: NameplateStyle;
+  label: string;
+  description: string;
+}> = [
+  { id: "classic", label: "Classic", description: "Current MTG-paper look — dark corner plate with rounded inner edge." },
+  { id: "fighter", label: "Fighter", description: "Street Fighter / Tekken HUD — big italic seat number, slanted name, aggressive corner cut." },
+  { id: "glass", label: "Glass", description: "Frosted glassmorphism floating off the corner. Low-key streamer vibe." },
+  { id: "broadcast", label: "Broadcast", description: "TV-banner stripe with bold accent seat block. Formal sports broadcast." },
+];
+
+// Mini preview — a hand-rolled small rendition of each style. Designed to fit
+// in a ~280×96 card so the 2×2 grid stays compact while still conveying the
+// distinctive chrome of each style.
+function StyleMiniPreview({ style }: { style: NameplateStyle }) {
+  const frame: React.CSSProperties = {
+    width: "100%",
+    height: 96,
+    position: "relative",
+    overflow: "hidden",
+    borderRadius: 4,
+    background:
+      "linear-gradient(135deg, #1d1d22 0%, #0b0b0e 100%)",
+  };
+
+  if (style === "classic") {
+    return (
+      <div style={frame}>
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            background: "rgba(0, 0, 0, 0.97)",
+            padding: "6px 10px",
+            borderRadius: "0 0 8px 0",
+            minWidth: 84,
+          }}
+        >
+          <div style={{ fontFamily: "var(--font-heading)", fontSize: 14, color: "#e4e0d8", lineHeight: 1 }}>
+            Player
+          </div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: "var(--color-brand)", marginTop: 2 }}>
+            Najeela
+          </div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 7, color: "#8a8678", marginTop: 1 }}>
+            <span style={{ color: "var(--color-brand)" }}>#1</span> · 3-0-0
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (style === "fighter") {
+    return (
+      <div style={frame}>
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            display: "flex",
+            minWidth: 140,
+            clipPath: `polygon(0 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%)`,
+            filter: "drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5))",
+          }}
+        >
+          <div
+            style={{
+              width: 28,
+              background:
+                "linear-gradient(135deg, var(--color-brand) 0%, rgba(0,0,0,0.55) 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontFamily: "var(--font-heading)",
+              fontSize: 22,
+              fontStyle: "italic",
+              fontWeight: 900,
+              lineHeight: 1,
+              color: "#0a0a0c",
+            }}
+          >
+            1
+          </div>
+          <div style={{ width: 2, background: "var(--color-brand)" }} />
+          <div
+            style={{
+              background: "rgba(10, 10, 12, 0.95)",
+              padding: "5px 10px",
+              flex: 1,
+            }}
+          >
+            <div
+              style={{
+                fontFamily: "var(--font-heading)",
+                fontSize: 14,
+                color: "#f3efe7",
+                lineHeight: 1,
+                letterSpacing: "1px",
+                textTransform: "uppercase",
+                fontStyle: "italic",
+                fontWeight: 700,
+              }}
+            >
+              Player
+            </div>
+            <div
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 7,
+                color: "#bdb8ac",
+                marginTop: 3,
+              }}
+            >
+              Najeela
+            </div>
+            <div
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 7,
+                color: "var(--color-brand)",
+                marginTop: 1,
+                letterSpacing: "1px",
+                textTransform: "uppercase",
+                fontWeight: 700,
+              }}
+            >
+              #1 · 3-0-0
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (style === "glass") {
+    return (
+      <div style={frame}>
+        <div
+          style={{
+            position: "absolute",
+            top: 10,
+            left: 10,
+            padding: "5px 12px",
+            borderRadius: 8,
+            background: "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04))",
+            border: "1px solid rgba(255,255,255,0.14)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
+            minWidth: 84,
+          }}
+        >
+          <div style={{ fontFamily: "var(--font-heading)", fontSize: 12, color: "#f3efe7", lineHeight: 1 }}>
+            Player
+          </div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: "rgba(244,240,232,0.78)", marginTop: 2 }}>
+            Najeela
+          </div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 7, color: "rgba(244,240,232,0.55)", marginTop: 1 }}>
+            <span style={{ color: "var(--color-brand)" }}>#1</span> · 3-0-0
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // broadcast
+  return (
+    <div style={frame}>
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          display: "flex",
+          minWidth: 130,
+          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.4)",
+        }}
+      >
+        <div
+          style={{
+            background: "rgba(8, 8, 10, 0.94)",
+            padding: "5px 10px",
+            flex: 1,
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "var(--font-heading)",
+              fontSize: 13,
+              color: "#f3efe7",
+              lineHeight: 1,
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            Player
+          </div>
+          <div
+            style={{
+              marginTop: 3,
+              paddingTop: 3,
+              borderTop: "1px solid var(--color-brand)",
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 7,
+              color: "#bdb8ac",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            Najeela · <span style={{ color: "var(--color-brand)" }}>3-0-0</span>
+          </div>
+        </div>
+        <div
+          style={{
+            width: 24,
+            background: "var(--color-brand)",
+            color: "#0a0a0c",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontFamily: "var(--font-heading)",
+            fontSize: 16,
+            lineHeight: 1,
+          }}
+        >
+          1
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Sidebar nav ──
+
+type SectionId = "tournament" | "branding" | "nameplates" | "about";
+
+interface SectionDef {
+  id: SectionId;
+  label: string;
+  producerOnly?: boolean;
+}
+
+const SECTIONS: SectionDef[] = [
+  { id: "tournament", label: "Tournament" },
+  { id: "branding", label: "Branding", producerOnly: true },
+  { id: "nameplates", label: "Nameplates", producerOnly: true },
+  { id: "about", label: "About" },
+];
 
 interface Props {
   open: boolean;
@@ -162,9 +442,11 @@ interface Props {
   onTopDeckConfigChange: (config: TopDeckConfig | null) => void;
   hasServerKey: boolean;
   role?: "caster" | "control";
-  // Brand controls are producer-only. Casters can omit these props.
+  // Producer-only customization. Casters can omit these props.
   brandSettings?: BrandSettings | null;
   onBrandSettingsChange?: (s: BrandSettings | null) => void;
+  overlayStyleSettings?: OverlayStyleSettings | null;
+  onOverlayStyleChange?: (s: OverlayStyleSettings | null) => void;
 }
 
 export function SettingsDialog({
@@ -176,23 +458,30 @@ export function SettingsDialog({
   role = "caster",
   brandSettings,
   onBrandSettingsChange,
+  overlayStyleSettings,
+  onOverlayStyleChange,
 }: Props) {
+  const isCaster = role === "caster";
+  const visibleSections = SECTIONS.filter((s) => !s.producerOnly || !isCaster);
+  const [activeSection, setActiveSection] = useState<SectionId>("tournament");
+
   const [apiKey, setApiKey] = useState(topDeckConfig?.apiKey ?? "");
   const [tid, setTid] = useState(topDeckConfig?.tournamentId ?? "");
   const [accentColor, setAccentColor] = useState(brandSettings?.accentColor ?? DEFAULT_BRAND.accentColor);
   const [fontFamily, setFontFamily] = useState(brandSettings?.fontFamily ?? DEFAULT_BRAND.fontFamily);
-  const isCaster = role === "caster";
+  const [nameplateStyle, setNameplateStyle] = useState<NameplateStyle>(
+    overlayStyleSettings?.nameplateStyle ?? DEFAULT_NAMEPLATE_STYLE,
+  );
 
   useEffect(() => {
     setApiKey(topDeckConfig?.apiKey ?? "");
     setTid(topDeckConfig?.tournamentId ?? "");
     setAccentColor(brandSettings?.accentColor ?? DEFAULT_BRAND.accentColor);
     setFontFamily(brandSettings?.fontFamily ?? DEFAULT_BRAND.fontFamily);
-  }, [open, topDeckConfig, brandSettings]);
+    setNameplateStyle(overlayStyleSettings?.nameplateStyle ?? DEFAULT_NAMEPLATE_STYLE);
+  }, [open, topDeckConfig, brandSettings, overlayStyleSettings]);
 
-  // Lazy-load the picked font so the preview block reflects the new face
-  // before the producer hits Save. Links are cached by font so swapping is
-  // cheap on subsequent selections.
+  // Lazy-load picked font so the live preview reflects the choice before save.
   useEffect(() => {
     if (!open || isCaster || !fontFamily) return;
     const linkId = `font-preview-${fontFamily.replace(/\s+/g, "-")}`;
@@ -222,6 +511,9 @@ export function SettingsDialog({
         fontFamily: fontFamily || DEFAULT_BRAND.fontFamily,
       });
     }
+    if (!isCaster && onOverlayStyleChange) {
+      onOverlayStyleChange({ nameplateStyle });
+    }
     onClose();
   };
 
@@ -232,163 +524,257 @@ export function SettingsDialog({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-[420px] rounded-lg border border-border bg-bg-raised p-6 shadow-xl">
-        <h2 className="font-heading text-2xl text-brand mb-4">Settings</h2>
-
-        {/* TopDeck.gg */}
-        <fieldset className="mb-4">
-          <legend className="text-[10px] font-medium uppercase tracking-widest text-text-muted mb-2">
-            TopDeck.gg
-          </legend>
-          {isCaster ? (
-            <div className="flex flex-col gap-2">
-              {topDeckConfig?.tournamentId ? (
-                <div className="flex items-center gap-2 h-8 px-3 rounded border border-border bg-bg-surface">
-                  <span className="h-2 w-2 rounded-full bg-status-green shrink-0" />
-                  <span className="text-xs text-text-dim">
-                    Connected to tournament — set by producer
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 h-8 px-3 rounded border border-border bg-bg-surface">
-                  <span className="h-2 w-2 rounded-full bg-text-muted shrink-0" />
-                  <span className="text-xs text-text-muted">
-                    Waiting for producer to set tournament
-                  </span>
-                </div>
-              )}
+      <div
+        className="flex flex-col rounded-lg border border-border bg-bg-raised shadow-xl"
+        style={{
+          width: 920,
+          height: 620,
+          maxWidth: "calc(100vw - 32px)",
+          maxHeight: "calc(100vh - 32px)",
+        }}
+      >
+        {/* body: sidebar + content pane */}
+        <div className="flex flex-1 min-h-0">
+          {/* sidebar */}
+          <aside className="w-[200px] shrink-0 border-r border-border bg-bg-base flex flex-col">
+            <div className="px-4 py-4 border-b border-border">
+              <h2 className="font-heading text-2xl text-brand leading-none">Settings</h2>
+              <p className="mt-1 text-[10px] uppercase tracking-widest text-text-muted">
+                {isCaster ? "Caster" : "Producer"}
+              </p>
             </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {hasServerKey ? (
-                <div className="flex items-center gap-2 h-8 px-3 rounded border border-border bg-bg-surface">
-                  <span className="h-2 w-2 rounded-full bg-status-green shrink-0" />
-                  <span className="text-xs text-text-dim">Server API key configured</span>
+            <nav className="flex-1 p-2 flex flex-col gap-1">
+              {visibleSections.map((sec) => {
+                const isActive = activeSection === sec.id;
+                return (
+                  <button
+                    key={sec.id}
+                    type="button"
+                    onClick={() => setActiveSection(sec.id)}
+                    className={`relative h-9 rounded px-3 text-left text-sm transition-colors ${
+                      isActive
+                        ? "bg-gold/10 text-brand"
+                        : "text-text-dim hover:bg-bg-surface hover:text-text-primary"
+                    }`}
+                  >
+                    {isActive && (
+                      <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r bg-gold" />
+                    )}
+                    {sec.label}
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
+
+          {/* content pane */}
+          <div className="flex-1 overflow-y-auto px-8 py-6">
+            {activeSection === "tournament" && (
+              <section>
+                <SectionHeader title="Tournament" subtitle="TopDeck.gg connection details for the active room." />
+                {isCaster ? (
+                  <div className="flex flex-col gap-2 max-w-md">
+                    {topDeckConfig?.tournamentId ? (
+                      <div className="flex items-center gap-2 h-9 px-3 rounded border border-border bg-bg-surface">
+                        <span className="h-2 w-2 rounded-full bg-status-green shrink-0" />
+                        <span className="text-xs text-text-dim">
+                          Connected — set by producer
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 h-9 px-3 rounded border border-border bg-bg-surface">
+                        <span className="h-2 w-2 rounded-full bg-text-muted shrink-0" />
+                        <span className="text-xs text-text-muted">
+                          Waiting for producer to set tournament
+                        </span>
+                      </div>
+                    )}
+                    {topDeckConfig?.tournamentId && (
+                      <div className="text-[11px] text-text-muted">
+                        Tournament ID: <span className="text-text-dim">{topDeckConfig.tournamentId}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3 max-w-md">
+                    <Field label="API Key">
+                      {hasServerKey ? (
+                        <div className="flex items-center gap-2 h-9 px-3 rounded border border-border bg-bg-surface">
+                          <span className="h-2 w-2 rounded-full bg-status-green shrink-0" />
+                          <span className="text-xs text-text-dim">Server API key configured</span>
+                        </div>
+                      ) : (
+                        <input
+                          type="password"
+                          placeholder="API Key"
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value)}
+                          className="h-9 w-full rounded border border-border bg-bg-surface px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-gold focus:outline-none"
+                        />
+                      )}
+                    </Field>
+                    <Field label="Tournament ID">
+                      <input
+                        type="text"
+                        placeholder="From the tournament URL"
+                        value={tid}
+                        onChange={(e) => setTid(e.target.value)}
+                        className="h-9 w-full rounded border border-border bg-bg-surface px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-gold focus:outline-none"
+                      />
+                    </Field>
+                    {!hasServerKey && (
+                      <a
+                        href="https://topdeck.gg/account"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] text-brand hover:text-brand-hover transition-colors"
+                      >
+                        Find your API key at topdeck.gg/account →
+                      </a>
+                    )}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {activeSection === "branding" && !isCaster && (
+              <section>
+                <SectionHeader
+                  title="Branding"
+                  subtitle="Heading font and accent color used across overlays — name plates, decklist headings, spotlight text."
+                />
+                <div className="flex flex-col gap-3 max-w-md">
+                  <Field label="Accent color">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="#c8aa6e"
+                        value={accentColor}
+                        onChange={(e) => setAccentColor(e.target.value)}
+                        className="h-9 flex-1 rounded border border-border bg-bg-surface px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-gold focus:outline-none"
+                      />
+                      <label
+                        className="h-9 w-9 rounded border border-border shrink-0 cursor-pointer overflow-hidden relative"
+                        style={{ backgroundColor: accentColor }}
+                        title="Pick a color"
+                      >
+                        <input
+                          type="color"
+                          value={/^#[0-9a-fA-F]{6}$/.test(accentColor) ? accentColor : "#c8aa6e"}
+                          onChange={(e) => setAccentColor(e.target.value)}
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                        />
+                      </label>
+                    </div>
+                  </Field>
+                  <Field label="Heading font">
+                    <FontPicker value={fontFamily} onChange={setFontFamily} />
+                  </Field>
+
+                  <div className="mt-2 rounded border border-border bg-bg-surface px-4 py-3">
+                    <div className="text-[9px] uppercase tracking-widest text-text-muted mb-2">Preview</div>
+                    <div
+                      style={{
+                        fontFamily: `"${fontFamily}", sans-serif`,
+                        fontSize: 36,
+                        lineHeight: 1,
+                        letterSpacing: 1,
+                        color: accentColor || DEFAULT_BRAND.accentColor,
+                      }}
+                    >
+                      Sample Heading
+                    </div>
+                    <div className="text-[10px] text-text-dim mt-1">Body text stays the same.</div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAccentColor(DEFAULT_BRAND.accentColor);
+                      setFontFamily(DEFAULT_BRAND.fontFamily);
+                      onBrandSettingsChange?.(null);
+                    }}
+                    className="self-start text-[11px] text-text-muted hover:text-text-dim transition-colors mt-1"
+                  >
+                    Reset to defaults
+                  </button>
                 </div>
-              ) : (
-                <input
-                  type="password"
-                  placeholder="API Key"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  className="h-8 w-full rounded border border-border bg-bg-surface px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-gold focus:outline-none"
+              </section>
+            )}
+
+            {activeSection === "nameplates" && !isCaster && (
+              <section>
+                <SectionHeader
+                  title="Name plate style"
+                  subtitle="Choose how player name plates render on the overlay. Applies to /overlay and /nameplates browser sources."
                 />
-              )}
-              <input
-                type="text"
-                placeholder="Tournament ID (from tournament URL)"
-                value={tid}
-                onChange={(e) => setTid(e.target.value)}
-                className="h-8 w-full rounded border border-border bg-bg-surface px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-gold focus:outline-none"
-              />
-              {!hasServerKey && (
-                <a
-                  href="https://topdeck.gg/account"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-1.5 inline-block text-[10px] text-brand hover:text-brand-hover transition-colors"
-                >
-                  Find your API key at topdeck.gg/account &rarr;
-                </a>
-              )}
-            </div>
-          )}
-        </fieldset>
-
-        {/* Video Feed info */}
-        <fieldset className="mb-4">
-          <legend className="text-[10px] font-medium uppercase tracking-widest text-text-muted mb-2">
-            Live Video Feed
-          </legend>
-          <p className="text-[10px] text-text-muted leading-relaxed">
-            The producer shares their OBS output via the "Start Camera" button on the
-            producer panel. Casters receive the feed automatically — no configuration needed.
-          </p>
-        </fieldset>
-
-        {/* Brand / Theme (producer only) */}
-        {!isCaster && (
-          <fieldset className="mb-6">
-            <legend className="text-[10px] font-medium uppercase tracking-widest text-text-muted mb-2">
-              Brand / Theme
-            </legend>
-            <p className="text-[10px] text-text-muted mb-2">
-              Customises the heading font and the brand-colored text (overlay
-              titles, name plates, decklist headings). Backgrounds, borders,
-              and muted/gray text stay unchanged.
-            </p>
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-text-dim w-24 shrink-0">Brand color</label>
-                <input
-                  type="text"
-                  placeholder="#c8aa6e"
-                  value={accentColor}
-                  onChange={(e) => setAccentColor(e.target.value)}
-                  className="h-8 flex-1 rounded border border-border bg-bg-surface px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-gold focus:outline-none"
-                />
-                <label
-                  className="h-8 w-8 rounded border border-border shrink-0 cursor-pointer overflow-hidden relative"
-                  style={{ backgroundColor: accentColor }}
-                  title="Pick a color"
-                >
-                  <input
-                    type="color"
-                    value={/^#[0-9a-fA-F]{6}$/.test(accentColor) ? accentColor : "#c8aa6e"}
-                    onChange={(e) => setAccentColor(e.target.value)}
-                    className="absolute inset-0 opacity-0 cursor-pointer"
-                  />
-                </label>
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-text-dim w-24 shrink-0">Heading font</label>
-                <FontPicker value={fontFamily} onChange={setFontFamily} />
-              </div>
-
-              {/* Live preview — mirrors how the brand will look on overlays */}
-              <div className="mt-1 rounded border border-border bg-bg-surface px-3 py-2">
-                <div className="text-[9px] uppercase tracking-widest text-text-muted mb-1">Preview</div>
-                <div
-                  style={{
-                    fontFamily: `"${fontFamily}", sans-serif`,
-                    fontSize: 28,
-                    lineHeight: 1,
-                    letterSpacing: 1,
-                    color: accentColor || DEFAULT_BRAND.accentColor,
+                <div className="grid grid-cols-2 gap-3">
+                  {NAMEPLATE_STYLE_OPTIONS.map((opt) => {
+                    const selected = nameplateStyle === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setNameplateStyle(opt.id)}
+                        className={`group relative flex flex-col rounded border text-left transition-colors p-2 ${
+                          selected
+                            ? "border-gold bg-gold/5"
+                            : "border-border bg-bg-surface hover:border-gold/40"
+                        }`}
+                      >
+                        <StyleMiniPreview style={opt.id} />
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <span
+                            className={`font-heading text-lg ${
+                              selected ? "text-brand" : "text-text-primary"
+                            }`}
+                          >
+                            {opt.label}
+                          </span>
+                          {selected && (
+                            <span className="text-[9px] uppercase tracking-widest text-brand">
+                              Selected
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-text-muted leading-snug mt-0.5">
+                          {opt.description}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNameplateStyle(DEFAULT_NAMEPLATE_STYLE);
+                    onOverlayStyleChange?.(null);
                   }}
+                  className="text-[11px] text-text-muted hover:text-text-dim transition-colors mt-3"
                 >
-                  Sample Heading
-                </div>
-                <div className="text-[10px] text-text-dim mt-1">Body text stays the same.</div>
-              </div>
+                  Reset to default ({DEFAULT_NAMEPLATE_STYLE})
+                </button>
+              </section>
+            )}            
+          </div>
+        </div>
 
-              <button
-                onClick={() => {
-                  setAccentColor(DEFAULT_BRAND.accentColor);
-                  setFontFamily(DEFAULT_BRAND.fontFamily);
-                  onBrandSettingsChange?.(null);
-                }}
-                className="self-start text-[10px] text-text-muted hover:text-text-dim transition-colors mt-1"
-              >
-                Reset to defaults
-              </button>
-            </div>
-          </fieldset>
-        )}
-
-        <div className="flex items-center justify-between">
+        {/* footer */}
+        <div className="flex items-center justify-between border-t border-border bg-bg-base px-6 py-3">
           <span className="text-[10px] text-text-muted">v{__APP_VERSION__}</span>
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={onClose}
-              className="h-8 rounded bg-bg-surface px-4 text-sm text-text-dim hover:bg-bg-overlay transition-colors"
+              className="h-9 rounded bg-bg-surface px-4 text-sm text-text-dim hover:bg-bg-overlay transition-colors"
             >
               {isCaster ? "Close" : "Cancel"}
             </button>
             {!isCaster && (
               <button
+                type="button"
                 onClick={handleSave}
-                className="h-8 rounded bg-gold px-4 text-sm font-medium text-bg-base hover:bg-gold-hover transition-colors"
+                className="h-9 rounded bg-gold px-4 text-sm font-medium text-bg-base hover:bg-gold-hover transition-colors"
               >
                 Save
               </button>
@@ -397,5 +783,27 @@ export function SettingsDialog({
         </div>
       </div>
     </div>
+  );
+}
+
+function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div className="mb-5">
+      <h3 className="font-heading text-2xl text-text-primary leading-none">{title}</h3>
+      {subtitle && (
+        <p className="mt-2 text-[11px] text-text-muted leading-relaxed max-w-lg">{subtitle}</p>
+      )}
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="text-[10px] font-medium uppercase tracking-widest text-text-muted">
+        {label}
+      </span>
+      {children}
+    </label>
   );
 }

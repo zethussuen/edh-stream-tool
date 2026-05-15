@@ -295,6 +295,14 @@ export interface BrandSettings {
   fontFamily: string;   // Google Font family name, e.g. "Bebas Neue", "Oswald"
 }
 
+// ── Overlay Style Settings ──
+
+export type NameplateStyle = "classic" | "fighter" | "glass" | "broadcast";
+
+export interface OverlayStyleSettings {
+  nameplateStyle: NameplateStyle;
+}
+
 export interface TopDeckAttendee {
   uid: string;
   name: string;

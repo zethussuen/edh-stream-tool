@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useRoom, useSocket } from "@shared/socket";
-import { OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
+import { DEFAULT_NAMEPLATE_STYLE, OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
 import { useBrandSettings } from "@shared/brand";
-import type { NamePlate, DecklistOverlayData, StreamPlayerStats, PodSummaryData } from "@shared/types";
+import { readCachedOverlayStyleSettings, useOverlayStyleSettings } from "@shared/overlay-style";
+import type { NamePlate, DecklistOverlayData, OverlayStyleSettings, StreamPlayerStats, PodSummaryData } from "@shared/types";
 import { CardRenderer } from "./components/CardRenderer";
 import { DrawRenderer } from "./components/DrawRenderer";
 import { Spotlight } from "./components/Spotlight";
@@ -18,6 +19,10 @@ export function App() {
   const [streamStats, setStreamStats] = useState<StreamPlayerStats[] | null>(null);
   const [decklist, setDecklist] = useState<DecklistOverlayData | null>(null);
   const [podSummary, setPodSummary] = useState<PodSummaryData | null>(null);
+  const [overlayStyle, setOverlayStyle] = useState<OverlayStyleSettings | null>(
+    () => readCachedOverlayStyleSettings(),
+  );
+  useOverlayStyleSettings(socket, setOverlayStyle);
 
   useEffect(() => {
     const s = socket.current;
@@ -72,7 +77,11 @@ export function App() {
       <DrawRenderer socket={socket} connected={connected} />
 
       {/* Name plates */}
-      <NamePlates plates={namePlates} stats={streamStats} />
+      <NamePlates
+        plates={namePlates}
+        stats={streamStats}
+        style={overlayStyle?.nameplateStyle ?? DEFAULT_NAMEPLATE_STYLE}
+      />
 
       {/* Decklist */}
       <DecklistOverlay data={decklist} />

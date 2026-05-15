@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useSocket } from "@shared/socket";
-import { OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
-import type { NamePlate, StreamPlayerStats } from "@shared/types";
+import { DEFAULT_NAMEPLATE_STYLE, OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@shared/constants";
+import type { NamePlate, OverlayStyleSettings, StreamPlayerStats } from "@shared/types";
 import { useBrandSettings } from "@shared/brand";
+import { readCachedOverlayStyleSettings, useOverlayStyleSettings } from "@shared/overlay-style";
 import { NamePlates } from "../overlay/components/NamePlates";
 
 export function App() {
@@ -10,6 +11,10 @@ export function App() {
   useBrandSettings(socket);
   const [namePlates, setNamePlates] = useState<NamePlate[] | null>(null);
   const [streamStats, setStreamStats] = useState<StreamPlayerStats[] | null>(null);
+  const [overlayStyle, setOverlayStyle] = useState<OverlayStyleSettings | null>(
+    () => readCachedOverlayStyleSettings(),
+  );
+  useOverlayStyleSettings(socket, setOverlayStyle);
 
   useEffect(() => {
     const s = socket.current;
@@ -37,7 +42,11 @@ export function App() {
         overflow: "hidden",
       }}
     >
-      <NamePlates plates={namePlates} stats={streamStats} />
+      <NamePlates
+        plates={namePlates}
+        stats={streamStats}
+        style={overlayStyle?.nameplateStyle ?? DEFAULT_NAMEPLATE_STYLE}
+      />
     </div>
   );
 }
