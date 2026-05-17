@@ -1,5 +1,3 @@
-<img width="2418" height="1544" alt="guide" src="https://github.com/user-attachments/assets/f8b65739-39c6-47d5-941c-da6c02dd8df9" />
-
 # cEDH Stream Tool
 
 A real-time, multi-operator stream overlay tool for casting competitive EDH (cEDH) Magic: The Gathering tournaments. Casters search for MTG cards, drag them onto a shared stream overlay, draw annotations, and spotlight cards, all rendering live on the OBS overlay.
@@ -15,6 +13,12 @@ Grab the latest macOS (arm64) or Windows (x64) build from the **[Releases page](
 Builds are unsigned, so the first launch shows a Gatekeeper / SmartScreen warning:
 - **macOS:** right-click the app, choose **Open**, then confirm. Only needed on the first launch.
 - **Windows:** click **More info** then **Run anyway** on the SmartScreen prompt.
+
+## Screenshots
+
+<img width="3394" height="1920" alt="image" src="https://github.com/user-attachments/assets/9f22128e-e5ed-411c-a899-9b87ed247283" />
+<img width="3066" height="1722" alt="image" src="https://github.com/user-attachments/assets/d809776f-bbe1-4c0f-83fe-3848cbe6ca22" />
+<img width="1974" height="1376" alt="image" src="https://github.com/user-attachments/assets/80ca9421-78cf-4bf7-bdbf-d8cffe10fd2f" />
 
 ## Setup (Tournament Day)
 
@@ -185,6 +189,8 @@ git push origin main --tags
 The workflow at [`.github/workflows/release.yml`](.github/workflows/release.yml) takes about 10 minutes. Auto-generated release notes are filled in from commit messages since the previous tag. Edit them on the Release page after the run completes.
 
 ## Tech Stack
+
+<img width="2418" height="1544" alt="guide" src="https://github.com/user-attachments/assets/f8b65739-39c6-47d5-941c-da6c02dd8df9" />
 
 - React 19 + TypeScript + Vite+
 - Tailwind CSS v4 + shadcn/ui
