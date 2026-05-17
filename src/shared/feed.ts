@@ -9,6 +9,35 @@ const RTC_CONFIG: RTCConfiguration = {
 // readable 1080p card art / text. Tune down if a venue's wifi is congested.
 const MAX_BITRATE_BPS = 15_000_000;
 
+// Ranked codec preference for the producer's video send. Desktop Chromium and
+// Firefox casters land on VP9 (better quality/bit). iPad casters (WebKit forced
+// on iOS) typically don't have VP9, so SDP negotiation falls back to H.264
+// automatically. AV1 is skipped because software encoding is too CPU-heavy on
+// a machine already running OBS.
+const PREFERRED_VIDEO_CODECS = ["video/VP9", "video/H264", "video/VP8"];
+
+function getOrderedVideoCodecs(): RTCRtpCodec[] | null {
+  if (typeof RTCRtpSender === "undefined" || !RTCRtpSender.getCapabilities) {
+    return null;
+  }
+  const caps = RTCRtpSender.getCapabilities("video");
+  if (!caps) return null;
+  const ordered: RTCRtpCodec[] = [];
+  for (const mime of PREFERRED_VIDEO_CODECS) {
+    for (const codec of caps.codecs) {
+      if (codec.mimeType.toLowerCase() === mime.toLowerCase()) {
+        ordered.push(codec);
+      }
+    }
+  }
+  // Append everything else we didn't explicitly rank, so negotiation can still
+  // succeed on exotic clients.
+  for (const codec of caps.codecs) {
+    if (!ordered.includes(codec)) ordered.push(codec);
+  }
+  return ordered;
+}
+
 /**
  * Hook for the producer: captures a camera (e.g. OBS Virtual Camera)
  * and streams it to casters via WebRTC.
@@ -36,6 +65,22 @@ export function useFeedPublisher(socket: React.RefObject<Socket | null>, connect
       const senders: RTCRtpSender[] = [];
       for (const track of stream.getTracks()) {
         senders.push(pc.addTrack(track, stream));
+      }
+
+      // Reorder the SDP offer's codec list so VP9 is preferred when both peers
+      // support it. Casters that can't decode VP9 (notably iPad/WebKit) fall
+      // through to H.264 automatically during negotiation.
+      const orderedCodecs = getOrderedVideoCodecs();
+      if (orderedCodecs) {
+        for (const transceiver of pc.getTransceivers()) {
+          if (transceiver.sender.track?.kind !== "video") continue;
+          if (typeof transceiver.setCodecPreferences !== "function") continue;
+          try {
+            transceiver.setCodecPreferences(orderedCodecs);
+          } catch (err) {
+            console.warn("Failed to set codec preferences:", err);
+          }
+        }
       }
 
       // Crank encoder bitrate and prefer sharpness over framerate. WebRTC's
