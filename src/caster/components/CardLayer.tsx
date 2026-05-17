@@ -83,6 +83,7 @@ export function CardLayer({ cards, scale, interactive, emit }: Props) {
         inset: 0,
         zIndex: 10,
         pointerEvents: interactive ? "auto" : "none",
+        touchAction: "none",
       }}
     >
       {cards.map((card) => {
@@ -114,6 +115,7 @@ export function CardLayer({ cards, scale, interactive, emit }: Props) {
                 borderRadius: 12,
                 cursor: interactive ? "grab" : "default",
                 userSelect: "none",
+                touchAction: "none",
                 display: "block",
               }}
               onPointerDown={(e) => onPointerDown(e, card)}

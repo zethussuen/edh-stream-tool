@@ -64,7 +64,11 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
     startX: number;
     startY: number;
     points: { x: number; y: number }[];
+    pointerId: number;
   } | null>(null);
+  // Palm rejection: once a pen pointer is seen, ignore touch pointers for a while
+  // so the user's palm resting on the iPad doesn't drop stray strokes.
+  const lastPenSeenRef = useRef(0);
   const rafRef = useRef<number>(0);
   const colorRef = useRef(color);
   const strokeWidthRef = useRef(strokeWidth);
@@ -109,12 +113,12 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
 
   useDrawReceiver(socket, connected, onRemoteStroke, onRemoteUndo, onRemoteClear, onRemoteProgress);
 
-  const toCanvas = useCallback(
-    (e: React.PointerEvent): { x: number; y: number } => {
+  const toCanvasXY = useCallback(
+    (clientX: number, clientY: number): { x: number; y: number } => {
       const rect = canvasRef.current!.getBoundingClientRect();
       return {
-        x: (e.clientX - rect.left) / scale,
-        y: (e.clientY - rect.top) / scale,
+        x: (clientX - rect.left) / scale,
+        y: (clientY - rect.top) / scale,
       };
     },
     [scale],
@@ -123,24 +127,52 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (tool === "select" || e.button !== 0) return;
+      // Palm rejection: drop touch input if a pen was used in the last 2s.
+      if (e.pointerType === "touch" && Date.now() - lastPenSeenRef.current < 2000) {
+        return;
+      }
+      // A second pointer landing during an active stroke must not hijack it.
+      if (drawingRef.current) return;
+      if (e.pointerType === "pen") {
+        lastPenSeenRef.current = Date.now();
+      }
+      // Lock the gesture so Safari/iOS doesn't try to scroll mid-stroke.
+      e.preventDefault();
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
-      const pt = toCanvas(e);
+      const pt = toCanvasXY(e.clientX, e.clientY);
       drawingRef.current = {
         type: tool as "pen" | "arrow" | "circle",
         startX: pt.x,
         startY: pt.y,
         points: [pt],
+        pointerId: e.pointerId,
       };
     },
-    [tool, toCanvas],
+    [tool, toCanvasXY],
   );
 
   const onPointerMove = useCallback(
     (e: React.PointerEvent) => {
       const d = drawingRef.current;
-      if (!d) return;
-      const pt = toCanvas(e);
-      d.points.push(pt);
+      if (!d || e.pointerId !== d.pointerId) return;
+      if (e.pointerType === "pen") {
+        lastPenSeenRef.current = Date.now();
+      }
+      // Apple Pencil emits ~240Hz; pointermove only fires at the display rate
+      // and bundles intermediate samples into getCoalescedEvents(). Use them
+      // for pen strokes so curves are smooth instead of stair-stepped.
+      if (d.type === "pen" && typeof e.nativeEvent.getCoalescedEvents === "function") {
+        const events = e.nativeEvent.getCoalescedEvents();
+        if (events.length > 0) {
+          for (const ce of events) {
+            d.points.push(toCanvasXY(ce.clientX, ce.clientY));
+          }
+        } else {
+          d.points.push(toCanvasXY(e.clientX, e.clientY));
+        }
+      } else {
+        d.points.push(toCanvasXY(e.clientX, e.clientY));
+      }
 
       // Stream in-progress stroke to other clients (~30fps throttle)
       const now = Date.now();
@@ -165,12 +197,12 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
         }
       }
     },
-    [toCanvas, color, strokeWidth, socket],
+    [toCanvasXY, color, strokeWidth, socket],
   );
 
-  const onPointerUp = useCallback(() => {
+  const onPointerUp = useCallback((e: React.PointerEvent) => {
     const d = drawingRef.current;
-    if (!d) return;
+    if (!d || e.pointerId !== d.pointerId) return;
     drawingRef.current = null;
 
     let stroke: DrawStroke;
@@ -200,6 +232,14 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
     });
     socket.current?.emit("draw:stroke", stroke);
   }, [color, strokeWidth, socket]);
+
+  const onPointerCancel = useCallback((e: React.PointerEvent) => {
+    const d = drawingRef.current;
+    if (!d || e.pointerId !== d.pointerId) return;
+    // Gesture interrupted by the OS (multitasking swipe, notification, etc.).
+    // Discard the in-progress stroke without committing.
+    drawingRef.current = null;
+  }, []);
 
   // Render loop
   useEffect(() => {
@@ -274,6 +314,7 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
       style={{
         position: "absolute",
         inset: 0,
@@ -281,6 +322,9 @@ export const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer({
         height: OVERLAY_HEIGHT,
         zIndex: 20,
         pointerEvents: active ? "auto" : "none",
+        // Prevent iOS Safari from intercepting vertical drags as page scroll
+        // (the symptom: pen strokes going up/down don't draw).
+        touchAction: "none",
         cursor,
       }}
     />
