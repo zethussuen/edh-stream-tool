@@ -2,6 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { TopDeckConfig, BrandSettings, NameplateStyle, OverlayStyleSettings } from "@shared/types";
 import { DEFAULT_BRAND, DEFAULT_NAMEPLATE_STYLE } from "@shared/constants";
+import {
+  DEFAULT_FEED_SETTINGS,
+  FEED_BITRATE_LABELS,
+  FEED_CODEC_LABELS,
+  type FeedBitratePreset,
+  type FeedCodecPreset,
+  type FeedSettings,
+} from "@shared/feed-settings";
 
 const FONT_OPTIONS = [
   "Anton",
@@ -420,7 +428,7 @@ function StyleMiniPreview({ style }: { style: NameplateStyle }) {
 
 // ── Sidebar nav ──
 
-type SectionId = "tournament" | "branding" | "nameplates" | "about";
+type SectionId = "tournament" | "branding" | "nameplates" | "feed" | "about";
 
 interface SectionDef {
   id: SectionId;
@@ -432,6 +440,7 @@ const SECTIONS: SectionDef[] = [
   { id: "tournament", label: "Tournament" },
   { id: "branding", label: "Branding", producerOnly: true },
   { id: "nameplates", label: "Nameplates", producerOnly: true },
+  { id: "feed", label: "Video Feed", producerOnly: true },
   { id: "about", label: "About" },
 ];
 
@@ -447,6 +456,9 @@ interface Props {
   onBrandSettingsChange?: (s: BrandSettings | null) => void;
   overlayStyleSettings?: OverlayStyleSettings | null;
   onOverlayStyleChange?: (s: OverlayStyleSettings | null) => void;
+  feedSettings?: FeedSettings;
+  onFeedSettingsChange?: (s: FeedSettings) => void;
+  feedPublishing?: boolean;
 }
 
 export function SettingsDialog({
@@ -460,6 +472,9 @@ export function SettingsDialog({
   onBrandSettingsChange,
   overlayStyleSettings,
   onOverlayStyleChange,
+  feedSettings,
+  onFeedSettingsChange,
+  feedPublishing = false,
 }: Props) {
   const isCaster = role === "caster";
   const visibleSections = SECTIONS.filter((s) => !s.producerOnly || !isCaster);
@@ -472,6 +487,12 @@ export function SettingsDialog({
   const [nameplateStyle, setNameplateStyle] = useState<NameplateStyle>(
     overlayStyleSettings?.nameplateStyle ?? DEFAULT_NAMEPLATE_STYLE,
   );
+  const [feedBitrate, setFeedBitrate] = useState<FeedBitratePreset>(
+    feedSettings?.bitrate ?? DEFAULT_FEED_SETTINGS.bitrate,
+  );
+  const [feedCodec, setFeedCodec] = useState<FeedCodecPreset>(
+    feedSettings?.codec ?? DEFAULT_FEED_SETTINGS.codec,
+  );
 
   useEffect(() => {
     setApiKey(topDeckConfig?.apiKey ?? "");
@@ -479,7 +500,9 @@ export function SettingsDialog({
     setAccentColor(brandSettings?.accentColor ?? DEFAULT_BRAND.accentColor);
     setFontFamily(brandSettings?.fontFamily ?? DEFAULT_BRAND.fontFamily);
     setNameplateStyle(overlayStyleSettings?.nameplateStyle ?? DEFAULT_NAMEPLATE_STYLE);
-  }, [open, topDeckConfig, brandSettings, overlayStyleSettings]);
+    setFeedBitrate(feedSettings?.bitrate ?? DEFAULT_FEED_SETTINGS.bitrate);
+    setFeedCodec(feedSettings?.codec ?? DEFAULT_FEED_SETTINGS.codec);
+  }, [open, topDeckConfig, brandSettings, overlayStyleSettings, feedSettings]);
 
   // Lazy-load picked font so the live preview reflects the choice before save.
   useEffect(() => {
@@ -513,6 +536,9 @@ export function SettingsDialog({
     }
     if (!isCaster && onOverlayStyleChange) {
       onOverlayStyleChange({ nameplateStyle });
+    }
+    if (!isCaster && onFeedSettingsChange) {
+      onFeedSettingsChange({ bitrate: feedBitrate, codec: feedCodec });
     }
     onClose();
   };
@@ -755,7 +781,107 @@ export function SettingsDialog({
                   Reset to default ({DEFAULT_NAMEPLATE_STYLE})
                 </button>
               </section>
-            )}            
+            )}
+
+            {activeSection === "feed" && !isCaster && (
+              <section>
+                <SectionHeader
+                  title="Video feed"
+                  subtitle="Controls the camera feed streamed from this machine to the casters. Higher bitrate looks sharper but uses more bandwidth. Drop it if a venue's wifi is saturated."
+                />
+                <div className="flex flex-col gap-3 max-w-md">
+                  <Field label="Bitrate">
+                    <select
+                      value={feedBitrate}
+                      onChange={(e) => setFeedBitrate(e.target.value as FeedBitratePreset)}
+                      className="h-9 w-full rounded border border-border bg-bg-surface px-3 text-sm text-text-primary focus:border-gold focus:outline-none"
+                    >
+                      {(Object.keys(FEED_BITRATE_LABELS) as FeedBitratePreset[]).map((id) => (
+                        <option key={id} value={id}>{FEED_BITRATE_LABELS[id]}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Codec preference">
+                    <select
+                      value={feedCodec}
+                      onChange={(e) => setFeedCodec(e.target.value as FeedCodecPreset)}
+                      className="h-9 w-full rounded border border-border bg-bg-surface px-3 text-sm text-text-primary focus:border-gold focus:outline-none"
+                    >
+                      {(Object.keys(FEED_CODEC_LABELS) as FeedCodecPreset[]).map((id) => (
+                        <option key={id} value={id}>{FEED_CODEC_LABELS[id]}</option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  {feedPublishing && feedCodec !== (feedSettings?.codec ?? DEFAULT_FEED_SETTINGS.codec) && (
+                    <div className="rounded border border-yellow-500/40 bg-yellow-500/5 px-3 py-2 text-[11px] text-yellow-200/90 leading-relaxed">
+                      Codec changes apply to new caster connections. Restart Camera (or have casters reload) to switch the live feed.
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-text-muted leading-relaxed mt-1">
+                    Bitrate changes apply to the live feed immediately. Codec preference only affects new peer connections, so restart Camera or have casters reload to switch a live session.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFeedBitrate(DEFAULT_FEED_SETTINGS.bitrate);
+                      setFeedCodec(DEFAULT_FEED_SETTINGS.codec);
+                      onFeedSettingsChange?.(DEFAULT_FEED_SETTINGS);
+                    }}
+                    className="self-start text-[11px] text-text-muted hover:text-text-dim transition-colors mt-1"
+                  >
+                    Reset to defaults
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {activeSection === "about" && (
+              <section>
+                <SectionHeader
+                  title="About"
+                  subtitle="cEDH Stream Tool is free and open source. Built for casting competitive EDH tournaments."
+                />
+                <div className="flex flex-col gap-4 max-w-md">
+                  <div className="rounded border border-border bg-bg-surface px-4 py-3">
+                    <div className="font-heading text-2xl text-brand leading-none">cEDH Stream Tool</div>
+                    <a
+                      href={`https://github.com/zethussuen/edh-stream-tool/releases/tag/v${__APP_VERSION__}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block mt-1.5 text-[11px] text-text-muted hover:text-brand transition-colors"
+                    >
+                      Version {__APP_VERSION__}
+                    </a>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <a
+                      href="https://github.com/zethussuen/edh-stream-tool"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[12px] text-brand hover:text-brand-hover transition-colors"
+                    >
+                      Source code on GitHub →
+                    </a>
+                    <a
+                      href="https://www.patreon.com/c/Eldrazidev"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[12px] text-brand hover:text-brand-hover transition-colors"
+                    >
+                      Support development on Patreon →
+                    </a>
+                  </div>
+
+                  <p className="text-[11px] text-text-muted leading-relaxed">
+                    Patreon support directly funds new features, bug fixes, and continued maintenance.
+                  </p>
+                </div>
+              </section>
+            )}
           </div>
         </div>
 

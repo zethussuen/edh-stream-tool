@@ -1,29 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
+import {
+  DEFAULT_FEED_SETTINGS,
+  FEED_BITRATE_BPS,
+  FEED_CODEC_RANKINGS,
+  type FeedSettings,
+} from "./feed-settings";
 
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: [], // No STUN/TURN needed on LAN
 };
 
-// 15 Mbps target. LAN has plenty of headroom; default ~2.5 Mbps is too low for
-// readable 1080p card art / text. Tune down if a venue's wifi is congested.
-const MAX_BITRATE_BPS = 15_000_000;
-
-// Ranked codec preference for the producer's video send. Desktop Chromium and
-// Firefox casters land on VP9 (better quality/bit). iPad casters (WebKit forced
-// on iOS) typically don't have VP9, so SDP negotiation falls back to H.264
-// automatically. AV1 is skipped because software encoding is too CPU-heavy on
-// a machine already running OBS.
-const PREFERRED_VIDEO_CODECS = ["video/VP9", "video/H264", "video/VP8"];
-
-function getOrderedVideoCodecs(): RTCRtpCodec[] | null {
+function getOrderedVideoCodecs(preferredMimes: string[]): RTCRtpCodec[] | null {
   if (typeof RTCRtpSender === "undefined" || !RTCRtpSender.getCapabilities) {
     return null;
   }
   const caps = RTCRtpSender.getCapabilities("video");
   if (!caps) return null;
   const ordered: RTCRtpCodec[] = [];
-  for (const mime of PREFERRED_VIDEO_CODECS) {
+  for (const mime of preferredMimes) {
     for (const codec of caps.codecs) {
       if (codec.mimeType.toLowerCase() === mime.toLowerCase()) {
         ordered.push(codec);
@@ -38,15 +33,57 @@ function getOrderedVideoCodecs(): RTCRtpCodec[] | null {
   return ordered;
 }
 
+function applyEncoderParams(pc: RTCPeerConnection, bps: number): void {
+  for (const sender of pc.getSenders()) {
+    if (sender.track?.kind !== "video") continue;
+    const params = sender.getParameters();
+    if (!params.encodings || params.encodings.length === 0) {
+      params.encodings = [{}];
+    }
+    for (const enc of params.encodings) {
+      enc.maxBitrate = bps;
+    }
+    params.degradationPreference = "maintain-resolution";
+    sender.setParameters(params).catch((err) => {
+      console.warn("Failed to set encoder parameters:", err);
+    });
+  }
+}
+
 /**
  * Hook for the producer: captures a camera (e.g. OBS Virtual Camera)
  * and streams it to casters via WebRTC.
+ *
+ * `settings` controls bitrate and codec preference. Bitrate changes propagate
+ * to every live peer connection. Codec preference is baked into the SDP offer
+ * at peer-creation time, so changing it requires casters to reconnect or the
+ * producer to restart the camera.
  */
-export function useFeedPublisher(socket: React.RefObject<Socket | null>, connected: boolean) {
+export function useFeedPublisher(
+  socket: React.RefObject<Socket | null>,
+  connected: boolean,
+  settings: FeedSettings = DEFAULT_FEED_SETTINGS,
+) {
   const streamRef = useRef<MediaStream | null>(null);
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const settingsRef = useRef(settings);
   const [publishing, setPublishing] = useState(false);
   const [deviceLabel, setDeviceLabel] = useState("");
+
+  // Keep latest settings in a ref so onFeedRequest reads current values
+  // without re-registering the socket listener on every settings change.
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
+  // Live-apply bitrate to every existing peer when the preset changes. Scoped
+  // to settings.bitrate so codec-only changes don't churn encoder params.
+  useEffect(() => {
+    const bps = FEED_BITRATE_BPS[settings.bitrate];
+    for (const pc of peersRef.current.values()) {
+      applyEncoderParams(pc, bps);
+    }
+  }, [settings.bitrate]);
 
   // Handle caster feed requests — create a peer connection and send offer
   useEffect(() => {
@@ -58,19 +95,19 @@ export function useFeedPublisher(socket: React.RefObject<Socket | null>, connect
       const stream = streamRef.current;
       if (!stream) return;
 
+      const current = settingsRef.current;
       const pc = new RTCPeerConnection(RTC_CONFIG);
       peersRef.current.set(casterId, pc);
 
       // Add video tracks from the captured stream
-      const senders: RTCRtpSender[] = [];
       for (const track of stream.getTracks()) {
-        senders.push(pc.addTrack(track, stream));
+        pc.addTrack(track, stream);
       }
 
-      // Reorder the SDP offer's codec list so VP9 is preferred when both peers
-      // support it. Casters that can't decode VP9 (notably iPad/WebKit) fall
-      // through to H.264 automatically during negotiation.
-      const orderedCodecs = getOrderedVideoCodecs();
+      // Reorder the SDP offer's codec list per current preference. Casters that
+      // can't decode the top-ranked codec (e.g. iPad/WebKit + VP9) fall through
+      // to the next supported entry during negotiation.
+      const orderedCodecs = getOrderedVideoCodecs(FEED_CODEC_RANKINGS[current.codec]);
       if (orderedCodecs) {
         for (const transceiver of pc.getTransceivers()) {
           if (transceiver.sender.track?.kind !== "video") continue;
@@ -83,24 +120,8 @@ export function useFeedPublisher(socket: React.RefObject<Socket | null>, connect
         }
       }
 
-      // Crank encoder bitrate and prefer sharpness over framerate. WebRTC's
-      // defaults are tuned for VoIP over the internet; on LAN we can spend much
-      // more bandwidth for legible card text.
-      for (const sender of senders) {
-        if (sender.track?.kind !== "video") continue;
-        const params = sender.getParameters();
-        if (!params.encodings || params.encodings.length === 0) {
-          params.encodings = [{}];
-        }
-        for (const enc of params.encodings) {
-          enc.maxBitrate = MAX_BITRATE_BPS;
-        }
-        // Drop framerate before resolution when the link gets stressed.
-        params.degradationPreference = "maintain-resolution";
-        sender.setParameters(params).catch((err) => {
-          console.warn("Failed to set encoder parameters:", err);
-        });
-      }
+      // Crank encoder bitrate and prefer sharpness over framerate.
+      applyEncoderParams(pc, FEED_BITRATE_BPS[current.bitrate]);
 
       // Send ICE candidates as they're gathered
       pc.onicecandidate = (e) => {

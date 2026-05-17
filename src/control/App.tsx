@@ -5,6 +5,11 @@ import { applyBrandSettings, readCachedBrandSettings, useBrandSettings } from "@
 import { readCachedOverlayStyleSettings, useOverlayStyleSettings } from "@shared/overlay-style";
 import { useRoom, useSocket, getRoom } from "@shared/socket";
 import { useFeedPublisher } from "@shared/feed";
+import {
+  readCachedFeedSettings,
+  writeCachedFeedSettings,
+  type FeedSettings,
+} from "@shared/feed-settings";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@shared/components/ui/tooltip";
 import { Sidebar } from "../caster/components/Sidebar";
 import { PreviewCanvas } from "../caster/components/PreviewCanvas";
@@ -16,7 +21,12 @@ import { ConnectionUrlsPopover } from "./components/ConnectionUrlsPopover";
 export function App() {
   const { socket, connected } = useSocket("control");
   const { state, emit } = useRoom(socket);
-  const { publishing, deviceLabel, stream, startCapture, stopCapture } = useFeedPublisher(socket, connected);
+  const [feedSettings, setFeedSettings] = useState<FeedSettings>(() => readCachedFeedSettings());
+  const handleFeedSettingsChange = useCallback((next: FeedSettings) => {
+    setFeedSettings(next);
+    writeCachedFeedSettings(next);
+  }, []);
+  const { publishing, deviceLabel, stream, startCapture, stopCapture } = useFeedPublisher(socket, connected, feedSettings);
   const previewRef = useRef<HTMLVideoElement>(null);
 
   // Attach stream to preview video element
@@ -441,6 +451,9 @@ export function App() {
         onBrandSettingsChange={handleBrandSettingsChange}
         overlayStyleSettings={overlayStyleSettings}
         onOverlayStyleChange={handleOverlayStyleChange}
+        feedSettings={feedSettings}
+        onFeedSettingsChange={handleFeedSettingsChange}
+        feedPublishing={publishing}
       />
     </div>
   );
