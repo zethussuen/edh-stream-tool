@@ -5,6 +5,10 @@ const RTC_CONFIG: RTCConfiguration = {
   iceServers: [], // No STUN/TURN needed on LAN
 };
 
+// 15 Mbps target. LAN has plenty of headroom; default ~2.5 Mbps is too low for
+// readable 1080p card art / text. Tune down if a venue's wifi is congested.
+const MAX_BITRATE_BPS = 15_000_000;
+
 /**
  * Hook for the producer: captures a camera (e.g. OBS Virtual Camera)
  * and streams it to casters via WebRTC.
@@ -29,8 +33,28 @@ export function useFeedPublisher(socket: React.RefObject<Socket | null>, connect
       peersRef.current.set(casterId, pc);
 
       // Add video tracks from the captured stream
+      const senders: RTCRtpSender[] = [];
       for (const track of stream.getTracks()) {
-        pc.addTrack(track, stream);
+        senders.push(pc.addTrack(track, stream));
+      }
+
+      // Crank encoder bitrate and prefer sharpness over framerate. WebRTC's
+      // defaults are tuned for VoIP over the internet; on LAN we can spend much
+      // more bandwidth for legible card text.
+      for (const sender of senders) {
+        if (sender.track?.kind !== "video") continue;
+        const params = sender.getParameters();
+        if (!params.encodings || params.encodings.length === 0) {
+          params.encodings = [{}];
+        }
+        for (const enc of params.encodings) {
+          enc.maxBitrate = MAX_BITRATE_BPS;
+        }
+        // Drop framerate before resolution when the link gets stressed.
+        params.degradationPreference = "maintain-resolution";
+        sender.setParameters(params).catch((err) => {
+          console.warn("Failed to set encoder parameters:", err);
+        });
       }
 
       // Send ICE candidates as they're gathered
@@ -104,6 +128,11 @@ export function useFeedPublisher(socket: React.RefObject<Socket | null>, connect
       setPublishing(true);
 
       const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        // Optimize encoder for sharpness over motion — cards/text matter more
+        // than smoothness on a tournament table feed.
+        videoTrack.contentHint = "detail";
+      }
       setDeviceLabel(videoTrack?.label ?? "Camera");
 
       socket.current?.emit("feed:available");
